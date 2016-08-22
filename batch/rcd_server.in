@@ -1,0 +1,23 @@
+#! /bin/bash
+# armagetronad start script
+
+# program installation directory
+PROGDIR=@scriptdir_reloc@
+
+# load configuration
+. ${PROGDIR}/rcd_config
+
+# files where PIDs are stored
+STARTERPIDFILE=${PIDDIR}/@progname@-starter.pid
+MAINPIDFILE=${PIDDIR}/@progname@.pid
+
+# program to run
+BINARY=serverstarter
+BINFILE=${PROGDIR}/${BINARY}
+TYPE=server
+
+# log file
+LOGFILE=${LOGDIR}/@prognamebase@.log
+
+# delegate to common start/stop/status code
+. ${RCDDIR}/rcd_startstop
