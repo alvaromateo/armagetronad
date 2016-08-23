@@ -1,0 +1,8 @@
+ServerBegin
+connection  "192.168.0.1"
+port        4533
+method      0
+key         0  
+tna         0
+name        Quickplay Server
+ServerEnd
