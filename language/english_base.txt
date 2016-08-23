@@ -2903,3 +2903,16 @@ include english_base_notranslate.txt
 
 # Room for lost settings in translation files:
 
+#*************************************
+#*************************************
+#
+#       Quick match
+#
+#*************************************
+#*************************************
+
+# Quick match is for randomly enter in a game against 3 other opponents.
+# All the server settings are set by default.
+
+quick_match_text			Quick match
+quick_match_help			Play online with other players and default settings
