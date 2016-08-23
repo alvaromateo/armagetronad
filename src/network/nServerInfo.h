@@ -252,10 +252,11 @@ public:
     // enum describing the query type logic ( all non-queried servers are queried once indirectly over the master server )
     enum QueryType
     {
-        QUERY_ALL=0,    //!< query all servers directly
-        QUERY_OPTOUT=1, //!< query all servers with nonnegative score bias
-        QUERY_OPTIN=2,  //!< query only servers with positive score bias
-        QUERY_NONE=3    //!< query only manually
+        QUERY_ALL=0,        //!< query all servers directly
+        QUERY_OPTOUT=1,     //!< query all servers with nonnegative score bias
+        QUERY_OPTIN=2,      //!< query only servers with positive score bias
+        QUERY_NONE=3,       //!< query only manually
+        QUERY_QUICKPLAY=4,  //!< query for a match
     };
 
     static void StartQueryAll( QueryType query = QUERY_ALL );     // start querying the advanced info of each of the servers in our list
