@@ -194,10 +194,8 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 
 void gServerBrowser::BrowseQuickPlay ()
 {
-    BrowseQuickPlayMaster(0,"");
-
     // Server name and port hardcoded to my own server and port
-    nServerInfoRedirect quick_play_server(tString("myIP"), 1234);
+    nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 1234);
     ConnectToServer(quick_play_server);
 }
 

@@ -1812,6 +1812,7 @@ void nServerInfo::QueryServer()                                  // start to get
 {
     // determine whether we should query directly or via the master
     bool queryDirectly = false;
+    bool queryQuickplay = false;
     switch( queryType_ )
     {
     case QUERY_ALL:
@@ -1828,6 +1829,7 @@ void nServerInfo::QueryServer()                                  // start to get
         break;
     case QUERY_QUICKPLAY:
         queryDirectly = true;
+        queryQuickplay = true;
         break;
     }
 
@@ -1918,6 +1920,7 @@ void nServerInfo::QueryServer()                                  // start to get
 #ifdef DEBUG_X
         con << "Pinging " << GetName() << "\n";
 #endif
+
         tJUST_CONTROLLED_PTR< nMessage > req;
         if ( queryQuickPlay ) {
             req = tNEW(nMessage)(RequestToJoinGame);

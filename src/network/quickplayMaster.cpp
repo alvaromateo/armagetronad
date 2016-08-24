@@ -87,11 +87,13 @@ int main(int argc, char** argv)
     nServerInfo::StartQueryAll(QUERY_QUICKPLAY);
 
     sn_serverPort = master_port;
+    // sn_SetNetState starts listener sockets
     sn_SetNetState(nSERVER);
 
     nTimeAbsolute savetimeout  = tSysTimeFloat();
     nTimeAbsolute querytimeout = tSysTimeFloat();
-    nTimeAbsolute quitTimeout  = tSysTimeFloat() + master_idle * 3600;
+    // won't put quit timeout so that the server doesn't shut down while in the middle of the presentation
+    // nTimeAbsolute quitTimeout  = tSysTimeFloat() + master_idle * 3600;
 
     bool goon = true;
     while ( goon )
@@ -123,7 +125,7 @@ int main(int argc, char** argv)
             }
             savetimeout = time + save_interval;
 
-            goon = time < quitTimeout;
+            // goon = time < quitTimeout;
         }
     }
 
