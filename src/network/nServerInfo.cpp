@@ -681,7 +681,7 @@ static nDescriptor RequestBigServerInfoMasterDescriptor(55,nServerInfo::GiveBigS
 //atic nDescriptor RequestExtraServerInfoDescriptor(55,nServerInfo::GiveExtraServerInfo,"extra_request", true);
 
 // Quick play descriptors
-static nDescriptor RequestToJoinGame(345, nServerInfo::RequestToJoinGame, "lala", true);
+static nDescriptor RequestServerToJoinGame(345, nServerInfo::RequestToJoinGame, "lala", true);
 
 
 static bool net_Accept()
@@ -1922,8 +1922,8 @@ void nServerInfo::QueryServer()                                  // start to get
 #endif
 
         tJUST_CONTROLLED_PTR< nMessage > req;
-        if ( queryQuickPlay ) {
-            req = tNEW(nMessage)(RequestToJoinGame);
+        if ( queryQuickplay ) {
+            req = tNEW(nMessage)(RequestServerToJoinGame);
         } else {
             req = tNEW(nMessage)(RequestBigServerInfoDescriptor);
         }

@@ -196,7 +196,7 @@ void gServerBrowser::BrowseQuickPlay ()
 {
     // Server name and port hardcoded to my own server and port
     nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 1234);
-    ConnectToServer(quick_play_server);
+    ConnectToServer( &quick_play_server );
 
 #ifdef DEBUG
     con << "Connected to quickplay server" << "\n";

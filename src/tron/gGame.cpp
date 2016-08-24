@@ -2417,8 +2417,8 @@ void net_game(){
 
     // Quick match option
     uMenuItemFunction quick_match
-    (&net_menu,"quick_match_text",
-      "quick_match_help",&gServerBrowser::BrowseQuickPlay);
+    (&net_menu,"$quick_match_text",
+      "$quick_match_help",&gServerBrowser::BrowseQuickPlay);
 
     gNetIdler idler;
     // rSysDep::StartNetSyncThread( &idler );
