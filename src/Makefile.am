@@ -134,8 +134,10 @@ endif
 
 if BUILDMASTER
 buildthemaster = armagetronad_main_master$(EXEEXT)
+buildquickplay = armagetronad_main_quickplay$(EXEEXT)
 else
 buildthemaster =
+buildquickplay =
 endif
 
 if BUILDMAIN
@@ -144,7 +146,7 @@ else
 buildmain =
 endif
 
-games_PROGRAMS = $(buildmain) $(buildthemaster)
+games_PROGRAMS = $(buildmain) $(buildthemaster) $(buildquickplay)
 #EXTRA_PROGRAMS = armagetronad_main_master
 
 
@@ -154,6 +156,9 @@ armagetronad_main$(EXEEXT): Makefile
 	${BUILDFAKE}
 
 armagetronad_main_master$(EXEEXT): Makefile
+	${BUILDFAKE}
+
+armagetronad_main_quickplay$(EXEEXT): Makefile
 	${BUILDFAKE}
 else
 if BUILDMAIN
@@ -166,9 +171,13 @@ armagetronad_main_SOURCES = tron/gFloor.cpp
 armagetronad_main_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_LDADD=libtron.a libenginecore.a libengine.a libnetwork.a libui.a librender.a libtools.a
 
-armagetronad_main_master_SOURCES = network/master.cpp network/quickplayMaster.cpp
+armagetronad_main_master_SOURCES = network/master.cpp
 armagetronad_main_master_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_master_LDADD=libnetwork.a libtools.a
+
+armagetronad_main_quickplay_SOURCES = network/quickplayMaster.cpp
+armagetronad_main_quickplay_CXXFLAGS =$(libtron_a_CXXFLAGS)
+armagetronad_main_quickplay_LDADD=libnetwork.a libtools.a
 endif
 
 ## Note: tron/gFloor.cpp is not referenced from the outside, but required anyway. So it can't be put into

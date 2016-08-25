@@ -84,7 +84,7 @@ int main(int argc, char** argv)
 
     nServerInfo::Load( tDirectories::Config(), "master_quickplay.srv" );
     // Set query type to get the info for a server to play
-    nServerInfo::StartQueryAll(QUERY_QUICKPLAY);
+    nServerInfo::StartQueryAll(nServerInfo::QUERY_QUICKPLAY);
 
     sn_serverPort = master_port;
     // sn_SetNetState starts listener sockets
