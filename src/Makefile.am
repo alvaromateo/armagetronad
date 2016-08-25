@@ -166,7 +166,7 @@ armagetronad_main_SOURCES = tron/gFloor.cpp
 armagetronad_main_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_LDADD=libtron.a libenginecore.a libengine.a libnetwork.a libui.a librender.a libtools.a
 
-armagetronad_main_master_SOURCES = network/master.cpp
+armagetronad_main_master_SOURCES = network/master.cpp network/quickplayMaster.cpp
 armagetronad_main_master_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_master_LDADD=libnetwork.a libtools.a
 endif
