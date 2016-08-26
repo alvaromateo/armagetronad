@@ -194,9 +194,12 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 
 void gServerBrowser::BrowseQuickPlay ()
 {
+    // Our own socket server ready to handle all the queries of the players
+    
     // Server name and port hardcoded to my own server and port
-    nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 1234);
+    nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 4533);
     ConnectToServer( &quick_play_server );
+    // nServerInfo::StartQueryAll( nServerInfo::QUERY_QUICKPLAY );
 
 #ifdef DEBUG
     con << "Connected to quickplay server" << "\n";
