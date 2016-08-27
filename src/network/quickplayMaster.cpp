@@ -23,114 +23,122 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
   
 ***************************************************************************
 
+ATENTION!
+
+This server is only guaranteed to run on GNU/Linux distributions
+
 */
 
-#include "tConfiguration.h"
-#include "tDirectories.h"
-#include "nNetwork.h"
-#include "nServerInfo.h"
-#include "tSysTime.h"
-#include "tLocale.h"
-#include "tCommandLine.h"
-#include "nSocket.h"
-#include  <time.h>
+#include <iostream>
+#include <fstream>
 
-REAL save_interval = 300.0f;
-static tSettingItem< REAL > si( "MASTER_SAVE_INTERVAL", save_interval );
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 
-REAL query_interval = 10.0f;
-static tSettingItem< REAL > qi( "MASTER_QUERY_INTERVAL", query_interval );
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
+#include <signal.h>
 
-int master_port = 4533;
-static tSettingItem< int > mp( "MASTER_PORT", master_port );
+// Defines
+#define PORT "3490"
+#define BACKLOG 10      // How many pending connections queue will hold
 
-REAL master_idle = 2;
-static tSettingItem< REAL > mi( "MASTER_IDLE", master_idle );
-
-// Console with filter for better machine readable log format
-class nConsoleDateFilter:public tConsoleFilter{
-private:
-    virtual void DoFilterLine( tString &line )
-    {
-        char szTemp[128];
-        time_t     now;
-        struct tm *pTime;
-        now = time(NULL);
-        pTime = localtime(&now);
-        strftime(szTemp,sizeof(szTemp),"[%Y/%m/%d %H:%M:%S] ",pTime);
-
-        tString orig = line;
-        line = "";
-        line << szTemp  << orig;
-    }
-
-    virtual int DoGetPriority() const{ return 1; }
-};
-
-static nConsoleDateFilter sn_consoleFilter;
 
 int main(int argc, char** argv)
 {
-    tCommandLineData commandLine;
-    commandLine.programVersion_ = &sn_programVersion;
-    commandLine.Analyse(argc, argv);
-    tLocale::Load("languages.txt");
-    atexit(tLocale::Clear);
+    int sockfd, newfd;
+    struct addrinfo hints, *servinfo, *p;
+    struct sockaddr_storage their_addr;
+    socklen_t sin_size;
+    struct sigaction sa;
+    int yes = 1;
+    char s[INET6_ADDRSTRLEN];
+    int rv;
 
-    // Loads configuration from files
-    st_LoadConfig();
-    // Loads different master servers from file "master.srv" --> not needed for quickplay
-    // nServerInfo::GetMasters();
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
 
-    nServerInfo::Load( tDirectories::Config(), "master_quickplay.srv" );
-    // Set query type to get the info for a server to play
-    nServerInfo::StartQueryAll(nServerInfo::QUERY_QUICKPLAY);
-
-    sn_serverPort = master_port;
-    // sn_SetNetState starts listener sockets
-    sn_SetNetState(nSERVER);
-
-    nTimeAbsolute savetimeout  = tSysTimeFloat();
-    nTimeAbsolute querytimeout = tSysTimeFloat();
-    // won't put quit timeout so that the server doesn't shut down while in the middle of the presentation
-    // nTimeAbsolute quitTimeout  = tSysTimeFloat() + master_idle * 3600;
-
-    bool goon = true;
-    while ( goon )
-    {
-        nServerInfo::RunMaster();
-
-        sn_BasicNetworkSystem.Select( .1f );
-        tAdvanceFrame();
-        nTimeAbsolute time = tSysTimeFloat();
-
-        sn_Receive();
-        sn_ReceiveFromControlSocket();
-        sn_SendPlanned();
-
-        static bool queryGoesOn = true;
-        if (queryGoesOn && time > querytimeout)
-        {
-            queryGoesOn = nServerInfo::DoQueryAll(1);
-            querytimeout = time + query_interval;
-        }
-
-        if (time > savetimeout)
-        {
-            nServerInfo::Save( tDirectories::Var(), "master_quickplay_list.srv" );
-            if (!queryGoesOn)
-            {
-                nServerInfo::StartQueryAll();
-                queryGoesOn = true;
-            }
-            savetimeout = time + save_interval;
-
-            // goon = time < quitTimeout;
-        }
+    if ((rv = getaddrinfo(NULL, PORT, &hints, &&servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return 1;
     }
 
-    nServerInfo::DeleteAll();
+    // loop through all the results and bind to the first we can
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype,
+            p->ai_protocol)) == -1) {
+            perror("server: socket");
+            continue;
+        }
 
-    return(0);
+        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, 
+            sizeof(int)) == -1) {
+            perror("setsockopt");
+            exit(1);
+        }
+
+        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(sockfd);
+            perror("server: bind");
+            continue;
+        }
+
+        break;
+    }
+
+    freeaddrinf(servinfo);
+
+    if (p == NULL) {
+        fprintf(stderr, "server: failed to bind\n");
+        exit(1);
+    }
+
+    if (listen(sockfd, BACKLOG) == -1) {
+        perror("listen");
+        exit(1);
+    }
+
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+    }
+
+    printf("server: waiting for connections...\n");
+
+    while(1) { // main accept() loop
+        sin_size = sizeof(their_addr);
+        newfd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
+        if (newfd == -1) {
+            perror("accept");
+            continue;
+        }
+
+        inet_ntop(their_addr.ss_family, get_in_addr(
+            (struct sockaddr *)&their_addr), s, sizeof(s));
+        printf("server: got connection from %s\n", s);
+
+        if (!fork()) { // child process
+            close(sockfd); // child doesn't need the listener
+            if (send(newfd, "Hello, world!", 13, 0) == -1) {
+                perror("send");
+            }
+            close(newfd);
+            exit(0);
+        }
+        close(newfd); // parent doesn't need this
+    }
+
 }
 
