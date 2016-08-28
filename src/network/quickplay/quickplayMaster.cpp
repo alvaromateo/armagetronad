@@ -47,13 +47,11 @@ This server is only guaranteed to run on GNU/Linux distributions
 
 
 // Defines
-#define PORT "3490"
-#define BACKLOG 20      // How many pending connections queue will hold
+#define PORT        "3490"
+#define BACKLOG     20      // How many pending connections queue will hold
+#define QPLAYERS    2       // number of players for each game
 
 using namespace std;
-
-
-vector<tronPlayer> playerQueue(20);     // Queue for holding the players that have to be paired
 
 
 int main(int argc, char** argv)
@@ -101,10 +99,16 @@ int main(int argc, char** argv)
             continue;   // there was an error when opening the file, so we look into the next addrinfo stored in servinfo
         }
 
+        retval = fcntl(socket, F_SETFL, O_NONBLOCK);
+        if (retval == -1) {
+            perror("fcntl failed\n");
+            exit(1);
+        }
+
         retval = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
         if (retval == -1) {
-            cout << "setsockopt failed\n";    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
-            exit(1);
+            perror("setsockopt failed\n");    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
+            exit(2);
         }
 
         retval = bind(sockfd, p->ai_addr, p->ai_addrlen);
@@ -121,13 +125,13 @@ int main(int argc, char** argv)
 
     if (p == NULL) {
         perror("server: failed to bind\n");
-        exit(2);
+        exit(3);
     }
 
     retval = listen(sockfd, BACKLOG);
     if (retval == -1) {
         perror("server: listen failed\n");
-        exit(3);
+        exit(4);
     }
 
     FD_SET(listener, master);       // adds the listener to the master set of descriptors
@@ -141,7 +145,7 @@ int main(int argc, char** argv)
         retval = select(fdmax + 1, &read_fds, NULL, NULL, NULL);
         if (retval == -1) {
             perror("server: select failed\n");
-            exit(4);
+            exit(5);
         }
 
         // loop through the existing connections looking for data to read
@@ -158,8 +162,14 @@ int main(int argc, char** argv)
                         if (newfd > fdmax) {
                             fdmax = newfd;      // keep track of the max
                         }
-                        cout << "server -> select: new connection\n";
+                        cout << "server -> select: new connection on socket " << i << endl;
                     }
+
+                    retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
+                    if (retval == -1) {
+                        cout << "server -> socket " << i << " could not be set to non blocking\n";
+                    }
+
                 } else {        // handle data from a client
                     nbytes = recv(i, buf, sizeof(buf), 0);
                     if (nbytes <= 0) {      // error or connection closed by the client
@@ -176,14 +186,18 @@ int main(int argc, char** argv)
                     }  else {
                         // we got some data from a client
                         // store the player in the queue
-                        // TODO
+                        qPlayer newPlayer;
+                        newPlayer.load(buf);        // read the buffer of data received to add the new player
+                        playerQueue.push_back(newPlayer);
                     }
                 }       // end handle data from client
             }       // end of FD_ISSET
         }       // end of looping through the existing connections
 
         // send the data to start the necessary quickplays
-        // TODO
+        if (playerQueue.size() >= NUM_PLAYERS_PER_GAME) {
+            qMatch newQuickMatch(playerQueue);
+        }
 
     }   // end of while(1)
 

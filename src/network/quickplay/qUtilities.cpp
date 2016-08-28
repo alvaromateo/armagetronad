@@ -25,22 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-#ifndef UTILITIES_H
-#define UTILITIES_H
 
-/*
- * This file will contain all the different classes needed.
- */
+#include "qUtilities.h"
 
-// NETWORK
 
-/*
- * This class stores all the parameters needed 
-class quickCon {
-	
-	private:
-		int listenSock, connectionSock;
-
-};
-
-#endif
