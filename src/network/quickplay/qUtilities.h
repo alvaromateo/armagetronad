@@ -40,19 +40,20 @@ This file will contain all the different classes needed.
 class qConnection {
 	private:
 		int sock; 									// the socket destined to the connection
-		struct sockaddr_storage remoteaddr;			// client address
+		sockaddr_storage remoteaddr;			// client address
 		socklen_t addrlen;							// length of the address (IPv4 or IPv6)
 
 	public:
-		qConnection(int socket, struct sockaddr_storage remoteaddress);
-		void readData(char *buf); 				// fills the buffer with data from the socket of the connection
-		void sendData(const char *buf);			// sends to the remote connection the data in the buffer
+		qConnection();																// initializes connection with the server
+		qConnection(int socket, struct sockaddr_storage remoteaddress);				// initializes connection to given remoteaddress
+		void readData(char *buf); 													// fills the buffer with data from the socket of the connection
+		void sendData(const char *buf);												// sends to the remote connection the data in the buffer
 };
 
 
 class qPlayer: qConnection {
 	private:
-		int PCvalue; 					// the priority assigned to that PC to act as the server of the game based on its computer
+		PlayerCPU cpu; 					// the priority assigned to that PC to act as the server of the game based on its computer
 		qConnection *matchServer;		// the server to which connect to start the match, set by reading the response of the server
 
 	public:
@@ -63,23 +64,25 @@ class qPlayer: qConnection {
 };
 
 
-class qServer: qConnection {
+class qServer {
 	private:
-		int param;
+		qConnection listener;
+		static vector<qPlayer> playerQueue;		// Queue for holding the players that have to be paired
 
 	public:
 		qServer();
+		addPlayer(const qPlayer &player);
 };
 
 
-// MATCH CREATION
+// CPU PROPERTIES
 
-class qMatchCreator {
+class PlayerCPU {
 	private:
-		static vector<qPlayer> playerQueue;     // Queue for holding the players that have to be paired
+		int val;
 
 	public:
-		qMatch();
+		PlayerCPU();
 };
 
 
