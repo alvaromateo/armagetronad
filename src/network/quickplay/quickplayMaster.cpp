@@ -46,102 +46,19 @@ This server is only guaranteed to run on GNU/Linux distributions
 #include <arpa/inet.h>
 
 
-// Defines
-#define PORT        "3490"
-#define BACKLOG     20      // How many pending connections queue will hold
-#define QPLAYERS    2       // number of players for each game
-
 using namespace std;
 
 
-int main(int argc, char** argv)
-{
-    fd_set master;          // master file descriptor list
-    fd_set read_fds;        // temporal file descriptor list for select() function
-    int fdmax;              // maximum file descriptor number
-
-    int listener, newfd;        // sockfd -> the socket we will listen to
-                                // newfd -> new socket to send information
-
-    struct addrinfo hints;
-    struct sockaddr_storage remoteaddr;         // client address
-    struct addrinfo *servinfo, *p;
-    socklen_t addrlen;
-
-    char remoteaddrbuf[INET6_ADDRSTRLEN];
-    int yes = 1;
-    int retval, i, j;
-
-    char buf[1024];         // values to store the data and the number of bytes received
-    int nbytes;
-
-    p = servinfo = NULL;    // initialization of pointers
-
-    FD_ZERO(&master);       // clear the master and read_fds sets
-    FD_ZERO(&read_fds);
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-
-    retval = getaddrinfo(NULL, PORT, &hints, &servinfo);
-    if (retval != 0) {
-        cerr << "server getaddrinfo: " << gai_strerror(retval) << endl;
-        return 1;
-    }
-
-    // loop through all the results and bind to the first we can
-    for (p = servinfo; p != NULL; p = p->ai_next) {
-        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (sockfd == -1) {
-            cout << "socked failed\n";
-            continue;   // there was an error when opening the file, so we look into the next addrinfo stored in servinfo
-        }
-
-        retval = fcntl(socket, F_SETFL, O_NONBLOCK);
-        if (retval == -1) {
-            perror("fcntl failed\n");
-            exit(1);
-        }
-
-        retval = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
-        if (retval == -1) {
-            perror("setsockopt failed\n");    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
-            exit(2);
-        }
-
-        retval = bind(sockfd, p->ai_addr, p->ai_addrlen);
-        if (retval == -1) {
-            close(sockfd);
-            cout << "server bind failed\n";
-            continue;
-        }
-
-        break; // if this instruction is reached it means all three system calls were successful and we can proceed
-    }
-
-    freeaddrinf(servinfo);  // this struct is no longer needed as we are already bound to the port
-
-    if (p == NULL) {
-        perror("server: failed to bind\n");
-        exit(3);
-    }
-
-    retval = listen(sockfd, BACKLOG);
-    if (retval == -1) {
-        perror("server: listen failed\n");
-        exit(4);
-    }
-
-    FD_SET(listener, master);       // adds the listener to the master set of descriptors
-    fdmax = listener;               // keep track of the maximum file descriptor
+int main(int argc, char **argv) {
+    qServer master();       // initialize this server
 
     cout << "server: waiting for connections...\n");
 
     // main select() loop
     while(1) { 
-        read_fds = master;
+        master.getData();
+
+        read_fds = master.getFileDescriptorList();
         retval = select(fdmax + 1, &read_fds, NULL, NULL, NULL);
         if (retval == -1) {
             perror("server: select failed\n");
@@ -203,3 +120,4 @@ int main(int argc, char** argv)
 
 }
 
+*/

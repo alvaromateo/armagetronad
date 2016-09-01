@@ -32,7 +32,11 @@ This file will contain all the different classes needed.
 #define QUTILITIES_H
 
 
+// Defines
+#define PORT        "3490"
 #define SERVER_IP	"79.153.71.108"
+#define BACKLOG     20      				// How many pending connections queue will hold
+#define QPLAYERS    2       				// number of players for each game
 
 
 // NETWORK
@@ -40,25 +44,25 @@ This file will contain all the different classes needed.
 class qConnection {
 	private:
 		int sock; 									// the socket destined to the connection
-		sockaddr_storage remoteaddr;			// client address
+		struct ockaddr_storage remoteaddr;				// client address
 		socklen_t addrlen;							// length of the address (IPv4 or IPv6)
 
 	public:
 		qConnection();																// initializes connection with the server
-		qConnection(int socket, struct sockaddr_storage remoteaddress);				// initializes connection to given remoteaddress
+		qConnection(int socket, sockaddr_storage remoteaddress);					// initializes connection to given remoteaddress
 		void readData(char *buf); 													// fills the buffer with data from the socket of the connection
 		void sendData(const char *buf);												// sends to the remote connection the data in the buffer
 };
 
 
-class qPlayer: qConnection {
+class qPlayer : public qConnection {
 	private:
 		PlayerCPU cpu; 					// the priority assigned to that PC to act as the server of the game based on its computer
 		qConnection *matchServer;		// the server to which connect to start the match, set by reading the response of the server
 
 	public:
 		qPlayer();
-		qPlayer(int socket, struct sockaddr_storage remoteaddress);
+		qPlayer(int socket, sockaddr_storage remoteaddress);
 
 		bool isMatchReady();
 };
@@ -66,12 +70,33 @@ class qPlayer: qConnection {
 
 class qServer {
 	private:
-		qConnection listener;
+		int listener;							// socket listening for connections
 		static vector<qPlayer> playerQueue;		// Queue for holding the players that have to be paired
+
+		int fdmax; 								// maximum file descriptor number
+		fd_set master;          				// master file descriptor list
 
 	public:
 		qServer();
-		addPlayer(const qPlayer &player);
+
+		// getters
+		inline fd_set getFileDescriptorList() { return master; }
+		inline int getFDmax() { return fdmax; }
+		inline int getListener() { return listener; }
+		inline const vector<qPlayer>& getPlayerQueue() { return playerQueue; }
+
+		const vector<qPlayer>& addPlayer(const qPlayer &player);
+		const vector<qPlayer>& removePlayer(const qPlayer &player);
+		const vector<qPlayer>& removePlayer(int index);
+
+		int getData();
+
+		virtual int handleData() = 0;
+};
+
+class qServerInstance : public qServer {
+	public:
+		int handleData();
 };
 
 
