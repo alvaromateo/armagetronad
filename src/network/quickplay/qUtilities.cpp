@@ -3,7 +3,7 @@
 *************************************************************************
 
 ArmageTron -- Just another Tron Lightcycle Game in 3D.
-Copyright (C) 2000  Manuel Moos (manuel@moosnet.de)
+Copyright (C) 2016  Alvaro Mateo (alvaromateo9@gmail.com)
 
 **************************************************************************
 
@@ -125,7 +125,7 @@ int qServer::getData() {
     int newfd;              // newfd -> new socket to send information
     int i, j, retval;
     int nbytes;
-    char buf[1024];         // values to store the data and the number of bytes received
+    short buf[MAX_BUF_SIZE]; 		// values to store the data and the number of bytes received
     
 
 	read_fds = this.master;
@@ -139,6 +139,9 @@ int qServer::getData() {
     for (i = 0; i <= this.fdmax; ++i) {
         if (FD_ISSET(i, &read_fds)) {   // there is some data ready
             if (i == listener) {        // new connection
+            	socklen_t addrlen;
+            	struct sockaddr_storage remoteaddr;
+
                 addrlen = sizeof(remoteaddr);
                 newfd = accept(listener, (struct sockaddr *) &remoteaddr, &addrlen);
 
@@ -150,6 +153,9 @@ int qServer::getData() {
                         fdmax = newfd;      // keep track of the max
                     }
                     cout << "server -> select: new connection on socket " << i << endl;
+
+                    qPlayer newPlayer(newfd, remoteaddr, addrlen); 		// create new player
+                    addPlayer(newPlayer);								// add player to the queue of players
                 }
 
                 retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
@@ -171,11 +177,8 @@ int qServer::getData() {
                     close(i);
                     FD_CLR(i, &master);     // remove it from master set
                 }  else {
-                    // we got some data from a client
-                    // store the player in the queue
-                    qPlayer newPlayer;
-                    newPlayer.load(buf);        // read the buffer of data received to add the new player
-                    playerQueue.push_back(newPlayer);
+                    // we got some data from a client -> handle it
+                    handleData(buf, nbytes, i);
                 }
             }       // end handle data from client
         }       // end of FD_ISSET
@@ -183,7 +186,78 @@ int qServer::getData() {
 
 }
 
+short qServer::readShort(short *&buf, int &count) {
+	if (count < MAX_BUF_SIZE) {
+		++count;
+		return *(buf++);
+	} else if (count == MAX_BUF_SIZE) {
+		return 0;								// buffer empty -> stop reading
+	} else {
+		return -1; 								// unknown error -> abort
+	}
+}
+
+
+// qServerInstance methods
+
+int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
+	// need the socket to get the player 
+	qPlayer *player = getPlayer(sock);
+	// a counter to check when we have finished reading all the data
+	int count = 0;
+
+	short type = readShort(buf, count);		// read first short and advance buf and count (they are references)
+	short packs = readShort(buf, count); 	// read number of packages
+	short idPack = readShort(buf, count);	// read the number of THIS package
+
+	// read the rest of the payload -> switch depending on each type of transmission
+	switch (type) {
+		case 0:
+			break;
+		default:
+	}
+}
+
+
 // PlayerCPU methods
 
 
+nMessage& nMessage::ReadRaw(tString &s )
+{
+    s.Clear();
+    unsigned short w,len;
+    Read(len);
+    if ( len > 0 )
+    {
+        s[len-1] = 0;
+        for(int i=0;i<len;i+=2){
+            Read(w);
+            
+            // carefully reverse the signed
+            // encoding logic
+            signed char lo = w & 0xff;
+            signed short hi = ((short)w) - lo;
+            hi >>= 8;
 
+            s[i] = lo;
+            if (i+1<len)
+                s[i+1] = hi;
+        }
+    }
+
+    return *this;
+}
+
+void nMessage::Read(unsigned short &x){
+    if (End()){
+        tOutput o;
+        st_Breakpoint();
+        o.SetTemplateParameter(1, senderID);
+        o << "$network_error_shortmessage";
+        con << o;
+        // sn_DisconnectUser(senderID, "$network_kill_error");
+        nReadError( false );
+    }
+    else
+        x=data(readOut++);
+}

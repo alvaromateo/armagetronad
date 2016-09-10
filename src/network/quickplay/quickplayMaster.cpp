@@ -3,7 +3,7 @@
 *************************************************************************
 
 ArmageTron -- Just another Tron Lightcycle Game in 3D.
-Copyright (C) 2000  Manuel Moos (manuel@moosnet.de)
+Copyright (C) 2016  Alvaro Mateo (alvaromateo9@gmail.com)
 
 **************************************************************************
 
@@ -50,74 +50,5 @@ using namespace std;
 
 
 int main(int argc, char **argv) {
-    qServer master();       // initialize this server
-
-    cout << "server: waiting for connections...\n");
-
-    // main select() loop
-    while(1) { 
-        master.getData();
-
-        read_fds = master.getFileDescriptorList();
-        retval = select(fdmax + 1, &read_fds, NULL, NULL, NULL);
-        if (retval == -1) {
-            perror("server: select failed\n");
-            exit(5);
-        }
-
-        // loop through the existing connections looking for data to read
-        for (i = 0; i <= fdmax; ++i) {
-            if (FD_ISSET(i, &read_fds)) {   // there is some data ready
-                if (i == listener) {        // new connection
-                    addrlen = sizeof(remoteaddr);
-                    newfd = accept(listener, (struct sockaddr *) &remoteaddr, &addrlen);
-
-                    if (newfd == -1) {
-                        perror("server: accept failed\n");
-                    } else {
-                        FD_SET(newfd, &master);
-                        if (newfd > fdmax) {
-                            fdmax = newfd;      // keep track of the max
-                        }
-                        cout << "server -> select: new connection on socket " << i << endl;
-                    }
-
-                    retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
-                    if (retval == -1) {
-                        cout << "server -> socket " << i << " could not be set to non blocking\n";
-                    }
-
-                } else {        // handle data from a client
-                    nbytes = recv(i, buf, sizeof(buf), 0);
-                    if (nbytes <= 0) {      // error or connection closed by the client
-                        if (nbytes == 0) { 
-                            // connection closed
-                            cout << "server -> select: socket hung up\n";
-                        } else {
-                            perror("server: recv failed\n");
-                        }
-
-                        // we don't need this socket any more
-                        close(i);
-                        FD_CLR(i, &master);     // remove it from master set
-                    }  else {
-                        // we got some data from a client
-                        // store the player in the queue
-                        qPlayer newPlayer;
-                        newPlayer.load(buf);        // read the buffer of data received to add the new player
-                        playerQueue.push_back(newPlayer);
-                    }
-                }       // end handle data from client
-            }       // end of FD_ISSET
-        }       // end of looping through the existing connections
-
-        // send the data to start the necessary quickplays
-        if (playerQueue.size() >= NUM_PLAYERS_PER_GAME) {
-            qMatch newQuickMatch(playerQueue);
-        }
-
-    }   // end of while(1)
 
 }
-
-*/
