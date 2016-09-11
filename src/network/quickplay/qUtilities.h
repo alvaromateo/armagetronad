@@ -32,6 +32,10 @@ This file will contain all the different classes needed.
 #define QUTILITIES_H
 
 
+#include <pair>
+#include <map>
+
+
 // Defines
 #define PORT        	"3490"
 #define SERVER_IP		"79.153.71.108"
@@ -55,7 +59,6 @@ class qConnection {
 		void sendData(const char *buf);													// sends to the remote connection the data in the buffer
 };
 
-
 class qPlayer : public qConnection {
 	private:
 		PlayerCPU cpu; 					// the priority assigned to that PC to act as the server of the game based on its computer
@@ -67,7 +70,6 @@ class qPlayer : public qConnection {
 
 		bool isMatchReady();
 };
-
 
 class qMessage;
 
@@ -93,7 +95,7 @@ class qServer {
 		inline int getFDmax() { return fdmax; }
 		inline int getListener() { return listener; }
 
-		virtual int getData();														// return number of bytes read or -1 if error
+		virtual int getData();												// return number of bytes read or -1 if error
 		virtual unsigned short readShort(short *&buf, int &count);			// count is a reference to a number of bytes read control variable
 };
 
@@ -110,10 +112,10 @@ class qServerInstance : public qServer {
 		const map<unsigned int, qPlayer>& removePlayer(const qPlayer &player);
 		const map<unsigned int, qPlayer>& removePlayer(int index);
 
-		int handleData(short *&buf, int numBytes, int sock);
+		int handleData(short *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
 
 	public:
-		qServerInstance() {}
+		qServerInstance() { setActiveServer(&this); }		// when a qServerInstance is created is automatically set to be the quickplayActiveServer
 
 		inline const map<unsigned int, qPlayer>& getPlayerQueue() { return playerQueue; }
 		inline const map<unsigned int, qMessage>& getMessageQueue() { return messageQueue; }
@@ -123,15 +125,23 @@ class qServerInstance : public qServer {
 
 class qMessage {
 	private:
-		vector<char *> messageParts;
-		unsigned int numBytes;
-		unsigned char messageType;
+		vector< pair<unsigned int, short *> > messageParts; 		// holds the pointers to the messages and their length
+		unsigned int numPacks;
+		unsigned short messageID;
+		unsigned short messageType;
 		qPlayer *owner;
 
 	public:
-		qMessage();
-		qMessage(char *buf, int nbytes, int sock);
+		qMessage() : messageParts(1, make_pair(0, NULL)), numPacks(1), messageID(0), messageType(0), owner(NULL) {}
+		qMessage(int numPacks, int messageID, unsigned short mType, int sock);
+		~qMessage();
+		// TODO: copy and move operators
+
+		int addMessgePart(short *&buf, int numBytes);
+		bool isMessageReadable() { return messageParts.size() == numPacks; }
 };
+
+void setActiveServer(qServerInstance *instance);
 
 
 // CPU PROPERTIES
