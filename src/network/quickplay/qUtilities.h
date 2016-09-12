@@ -105,8 +105,9 @@ class qServer {
  */
 class qServerInstance : public qServer {
 	private:
-		map<unsigned int, qPlayer> playerQueue;			// Queue for holding the players that have to be paired
-		map<unsigned int, qMessage> messageQueue;		// Queue for holding the messages until they are processed
+		map<unsigned int, qPlayer> playerQueue;								// Queue for holding the players that have to be paired
+		map<unsigned int, map<unsigned short, qMessage> > messageQueue;		// Queue for holding the messages until they are processed
+		// the map holds the socket to which the messages are bound and a map with the <messageID, qMessage>
 
 		const map<unsigned int, qPlayer>& addPlayer(const qPlayer &player);
 		const map<unsigned int, qPlayer>& removePlayer(const qPlayer &player);
@@ -118,15 +119,15 @@ class qServerInstance : public qServer {
 		qServerInstance() { setActiveServer(&this); }		// when a qServerInstance is created is automatically set to be the quickplayActiveServer
 
 		inline const map<unsigned int, qPlayer>& getPlayerQueue() { return playerQueue; }
-		inline const map<unsigned int, qMessage>& getMessageQueue() { return messageQueue; }
+		inline const map<unsigned int, vector<qMessage> >& getMessageQueue() { return messageQueue; }
 
 		qPlayer *getPlayer(int sock) { return &playerQueue[sock]; } 		// return the player which has sock assigned to its connection
 };
 
 class qMessage {
 	private:
-		vector< pair<unsigned int, short *> > messageParts; 		// holds the pointers to the messages and their length
-		unsigned int numPacks;
+		vector<short *> messageParts; 		// holds the pointers to the messages and their length
+		unsigned int messLen;
 		unsigned short messageID;
 		unsigned short messageType;
 		qPlayer *owner;

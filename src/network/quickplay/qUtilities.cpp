@@ -222,7 +222,13 @@ int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
 	int count, retval;
     retval = count = 0;
 
-    short messId = readShort(buf, count);   // read the ID of this message
+    short messId, messageLen;
+
+    if (numBytes >= 2) {
+    	messId = readShort(buf, count);   			// read the ID of this message
+    	messageLen = readShort(buf, count); 		// read the length of the message
+    }
+    
     // find if there is already a message with the ID read
     map<unsigned int, qMessage>::iterator it = messageQueue.find(sock);
     if (it != messageQueue.end()) {
