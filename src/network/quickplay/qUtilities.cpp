@@ -216,12 +216,9 @@ short qServer::readShort(short *&buf, int &count) {
 
 int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
     qMessage message;
-	// need the socket to get the player 
-	qPlayer *player = getPlayer(sock);
 	// a counter to check when we have finished reading all the data
 	int count, retval;
     retval = count = 0;
-
     short messId, messageLen;
 
     if (numBytes >= 2) {
@@ -230,20 +227,23 @@ int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
     }
     
     // find if there is already a message with the ID read
-    map<unsigned int, qMessage>::iterator it = messageQueue.find(sock);
+    map<unsigned int, vector<qMessage> >::iterator it = messageQueue.find(sock);
     if (it != messageQueue.end()) {
-        // message already exists -> add the new part to it
-        message = it->second;
-        message.addMessagePart(buf, numBytes - count);
-    } else {
-        // new message to handle -> create it and add the just received part
-        short packs = readShort(buf, count);    // read number of packages
-        short type = readShort(buf, count);     // read the type of the package
-        message = qMessage(packs, messId, type, sock);
-        message.addMessagePart(buf, numBytes - count);
-        // add the message to the map
-        messageQueue.insert(pair<unsigned int, qMessage>(sock, message));
-    }
+    	map<unsigned short, qMessage>::iterator messagesIt = (it->second).find()
+	    if (it != messageQueue.end()) {
+	        // message already exists -> add the new part to it
+	        message = it->second;
+	        message.addMessagePart(buf, numBytes - count);
+	    } else {
+	        // new message to handle -> create it and add the just received part
+	        short packs = readShort(buf, count);    // read number of packages
+	        short type = readShort(buf, count);     // read the type of the package
+	        message = qMessage(packs, messId, type, sock);
+	        message.addMessagePart(buf, numBytes - count);
+	        // add the message to the map
+	        messageQueue.insert(pair<unsigned int, qMessage>(sock, message));
+	    }
+	}
 
     if (message.isMessageReadable()) {
         // read the message
@@ -272,8 +272,8 @@ int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
 
 // qMessage methods
 
-qMessage::qMessage(int numPacks, int messageID, unsigned short mType, int sock) : 
-    messageParts(numPacks, make_pair(0, NULL), numPacks(numPacks), 
+qMessage::qMessage(int messLen, int messageID, unsigned short mType, int sock) : 
+    messageParts(1, make_pair(0, NULL), messLen(messLen), 
     messageID(messageID), messageType(mType) {
         owner = quickplayActiveServer->getPlayer(sock);
 }
@@ -285,6 +285,15 @@ qMessage::~qMessage() {
 int qMessage::addMessgePart(short *&buf, int numBytes) {
     // check the message part to insert it in its position
     short idPack = readShort(buf, count);   // read the number of THIS package
+}
+
+unsigned int qMessage::getMessageLength() {
+	int length = 0;
+	vector< pair<unsigned short, short *> >::iterator it;
+	for (it = messageParts.begin(); it != messageParts.end(); ++it) {
+		length += it->first;
+	}
+	return length;
 }
 
 

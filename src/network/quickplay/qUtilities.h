@@ -106,8 +106,8 @@ class qServer {
 class qServerInstance : public qServer {
 	private:
 		map<unsigned int, qPlayer> playerQueue;								// Queue for holding the players that have to be paired
-		map<unsigned int, map<unsigned short, qMessage> > messageQueue;		// Queue for holding the messages until they are processed
-		// the map holds the socket to which the messages are bound and a map with the <messageID, qMessage>
+		map<unsigned int, vector<qMessage> > messageQueue;					// Queue for holding the messages until they are processed
+		// messages are placed at the back of the vector in the order they are received -> order is granted thanks to TCP sockets
 
 		const map<unsigned int, qPlayer>& addPlayer(const qPlayer &player);
 		const map<unsigned int, qPlayer>& removePlayer(const qPlayer &player);
@@ -126,20 +126,21 @@ class qServerInstance : public qServer {
 
 class qMessage {
 	private:
-		vector<short *> messageParts; 		// holds the pointers to the messages and their length
+		vector< pair<unsigned short, short *> > messageParts; 		// holds the pointers to the messages and their length
 		unsigned int messLen;
 		unsigned short messageID;
 		unsigned short messageType;
 		qPlayer *owner;
 
 	public:
-		qMessage() : messageParts(1, make_pair(0, NULL)), numPacks(1), messageID(0), messageType(0), owner(NULL) {}
-		qMessage(int numPacks, int messageID, unsigned short mType, int sock);
+		qMessage() : messageParts(1, make_pair(0, NULL)), messLen(0), messageID(0), messageType(0), owner(NULL) {} 
+		qMessage(int messLen, int messageID, unsigned short mType, int sock);
 		~qMessage();
 		// TODO: copy and move operators
 
 		int addMessgePart(short *&buf, int numBytes);
-		bool isMessageReadable() { return messageParts.size() == numPacks; }
+		bool isMessageReadable() { return getMessageLength == messLen; }
+		unsigned int getMessageLength();
 };
 
 void setActiveServer(qServerInstance *instance);
