@@ -85,7 +85,7 @@ class qServer {
 		int fdmax; 								// maximum file descriptor number
 		fd_set master;          				// master file descriptor list
 
-		virtual int handleData(short *&buf, int numBytes, int sock) = 0;
+		virtual void handleData(short *&buf, int numBytes, int sock) = 0;
 
 	public:
 		qServer();
@@ -107,12 +107,12 @@ class qServerInstance : public qServer {
 	private:
 		map<unsigned int, qPlayer> playerQueue;			// Queue for holding the players that have to be paired
 		map<unsigned int, qMessage> messageQueue;		// Queue for holding the messages until they are processed
-
+/*
 		const map<unsigned int, qPlayer>& addPlayer(const qPlayer &player);
 		const map<unsigned int, qPlayer>& removePlayer(const qPlayer &player);
 		const map<unsigned int, qPlayer>& removePlayer(int index);
-
-		int handleData(short *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
+*/
+		void handleData(short *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
 
 	public:
 		qServerInstance() { setActiveServer(&this); }		// when a qServerInstance is created is automatically set to be the quickplayActiveServer
@@ -121,24 +121,28 @@ class qServerInstance : public qServer {
 		inline const map<unsigned int, qMessage>& getMessageQueue() { return messageQueue; }
 
 		qPlayer *getPlayer(int sock) { return &playerQueue[sock]; } 		// return the player which has sock assigned to its connection
+
+		void processMessages();
 };
 
+/*
+ * This class represents a message. 
+ */
 class qMessage {
 	private:
-		vector< pair<unsigned int, short *> > messageParts; 		// holds the pointers to the messages and their length
-		unsigned int numPacks;
-		unsigned short messageID;
-		unsigned short messageType;
+		short *buffer; 			// holds the payload of the message
+		size_t messLen;
+		size_t currentLen;
 		qPlayer *owner;
 
 	public:
-		qMessage() : messageParts(1, make_pair(0, NULL)), numPacks(1), messageID(0), messageType(0), owner(NULL) {}
-		qMessage(int numPacks, int messageID, unsigned short mType, int sock);
+		qMessage();				// default aknowledge message
+		qMessage(size_t messLen, int sock);
 		~qMessage();
 		// TODO: copy and move operators
 
-		int addMessgePart(short *&buf, int numBytes);
-		bool isMessageReadable() { return messageParts.size() == numPacks; }
+		int addMessgePart(const short *buf, int numBytes);
+		bool isMessageReadable() { return messLen == currentLen; }
 };
 
 void setActiveServer(qServerInstance *instance);

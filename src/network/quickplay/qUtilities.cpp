@@ -133,7 +133,7 @@ int qServer::getData() {
 
     int newfd;              // newfd -> new socket to send information
     int i, j, retval;
-    int nbytes, bytesRead;
+    int nbytes;
     short buf[MAX_BUF_SIZE]; 		// values to store the data and the number of bytes received
     
 
@@ -187,64 +187,101 @@ int qServer::getData() {
                     FD_CLR(i, &master);     // remove it from master set
                 }  else {
                     // we got some data from a client -> handle it
-                    bytesRead = handleData(buf, nbytes, i);
+                    handleData(buf, nbytes, i);
                 }
             }       // end handle data from client
-
-            // checks of information received
-            if (bytesRead < 0) {
-                cout << "server -> error reading the information received\n";
-            }
         }       // end of FD_ISSET
     }       // end of looping through the existing connections
 
 }
 
-short qServer::readShort(short *&buf, int &count) {
-	if (count < MAX_BUF_SIZE) {
-		++count;
-		return ntohs(*(buf++));                 // use ntohs to parse the data from the socket
-	} else if (count == MAX_BUF_SIZE) {
-		return 0;								// buffer empty -> stop reading
+short qServer::readShort(const short *buf, int &bytesRead) {
+	if (bytesRead < MAX_BUF_SIZE) {
+		++bytesRead;
+		return ntohs(buf[bytesRead]);              // use ntohs to parse the data from the socket
+	} else if (bytesRead == MAX_BUF_SIZE) {
+		return 0;						           // buffer empty -> stop reading
 	} else {
-		return -1; 								// unknown error -> abort
+		return -1; 								   // unknown error -> abort
 	}
 }
 
 
 // qServerInstance methods
 
-int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
-    qMessage message;
-	// need the socket to get the player 
-	qPlayer *player = getPlayer(sock);
-	// a counter to check when we have finished reading all the data
-	int count, retval;
-    retval = count = 0;
-
-    short messId = readShort(buf, count);   // read the ID of this message
-    // find if there is already a message with the ID read
+void qServerInstance::handleData(short *&buf, int numBytes, int sock) {
+    // find if there is already a message started in the socket
     map<unsigned int, qMessage>::iterator it = messageQueue.find(sock);
     if (it != messageQueue.end()) {
         // message already exists -> add the new part to it
-        message = it->second;
-        message.addMessagePart(buf, numBytes - count);
+        (it->second).addMessagePart(buf, numBytes);
     } else {
         // new message to handle -> create it and add the just received part
-        short packs = readShort(buf, count);    // read number of packages
-        short type = readShort(buf, count);     // read the type of the package
-        message = qMessage(packs, messId, type, sock);
-        message.addMessagePart(buf, numBytes - count);
+
+        short messLen = readShort(buf, 0);   // read the length of this message -> 1st short
+
+        qMessage message(messLen, sock);
+        message.addMessagePart(buf + 1, numBytes - sizeof(short));
+
         // add the message to the map
         messageQueue.insert(pair<unsigned int, qMessage>(sock, message));
     }
+}
+
+void qServerInstance::processMessages() {
+    map<unsigned int, qMessage>::iterator it = messageQueue.begin();
+    while (it != messageQueue.end()) {
+        if ((it->second).isMessageReadable()) {
+            (it->second).handleMessage();
+            messageQueue.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+}
+
+
+// qMessage methods
+
+qMessage::qMessage() {
+
+}
+
+qMessage::qMessage(size_t messLen, int sock) : 
+    messLen(messLen), currentLen(0) {
+        owner = quickplayActiveServer->getPlayer(sock);
+        buffer = new short[MAX_BUF_SIZE];
+}
+
+qMessage::~qMessage() {
+    // delete the allocated memory
+    delete[] buffer;
+}
+
+int qMessage::addMessgePart(short *&buf, int numBytes) {
+    // check the message part to insert it in its position
+    short idPack = readShort(buf, recvLen);   // read the number of THIS package
+    // if idPack is 0 then next byte is the type
+    short type = readShort(buf, recvLen);     // read the type of the package
+    // set the type
+    this.messageType = type;
+}
+
+void qMessage::handleMessage() {
+
+}
+
+
+// PlayerCPU methods
+
+
 
     if (message.isMessageReadable()) {
         // read the message
 
         // read the rest of the payload -> switch depending on each type of transmission
         switch (type) {
-            case 0:         // request to join a quickplay match
+            case 0:         // request to join a quickplay match --> undefined and the rest +1
                 break;
             case 1:         // match host tells server it is ready
                 break;
@@ -257,33 +294,6 @@ int qServerInstance::handleData(short *&buf, int numBytes, int sock) {
         }
 
     }
-
-    // if the message is not ready yet we wait until we have finished receiving all the parts
-
-    return retval;
-}
-
-
-// qMessage methods
-
-qMessage::qMessage(int numPacks, int messageID, unsigned short mType, int sock) : 
-    messageParts(numPacks, make_pair(0, NULL), numPacks(numPacks), 
-    messageID(messageID), messageType(mType) {
-        owner = quickplayActiveServer->getPlayer(sock);
-}
-
-qMessage::~qMessage() {
-    // delete the allocated memory
-}
-
-int qMessage::addMessgePart(short *&buf, int numBytes) {
-    // check the message part to insert it in its position
-    short idPack = readShort(buf, count);   // read the number of THIS package
-}
-
-
-// PlayerCPU methods
-
 
 nMessage& nMessage::ReadRaw(tString &s )
 {
