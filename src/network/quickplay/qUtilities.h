@@ -118,7 +118,7 @@ class qServerInstance : public qServer {
 		qServerInstance() { setActiveServer(&this); }		// when a qServerInstance is created is automatically set to be the quickplayActiveServer
 
 		inline const map<unsigned int, qPlayer>& getPlayerQueue() { return playerQueue; }
-		inline const map<unsigned int, qMessage>& getMessageQueue() { return messageQueue; }
+		inline const map<unsigned int, vector<qMessage> >& getMessageQueue() { return messageQueue; }
 
 		qPlayer *getPlayer(int sock) { return &playerQueue[sock]; } 		// return the player which has sock assigned to its connection
 

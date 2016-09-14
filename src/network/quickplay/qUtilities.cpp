@@ -271,6 +271,15 @@ void qMessage::handleMessage() {
 
 }
 
+unsigned int qMessage::getMessageLength() {
+	int length = 0;
+	vector< pair<unsigned short, short *> >::iterator it;
+	for (it = messageParts.begin(); it != messageParts.end(); ++it) {
+		length += it->first;
+	}
+	return length;
+}
+
 
 // PlayerCPU methods
 
