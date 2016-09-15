@@ -131,7 +131,7 @@ class qMessage {
 		short *buffer; 			// holds the payload of the message
 		size_t messLen;			// doesn't take into account the header "message length" short (2 bytes)
 		size_t currentLen;
-		qPlayer *owner;
+		qPlayer *owner;			// TODO: do we need this??
 
 		// Properties of the message
 		short type;
@@ -141,6 +141,12 @@ class qMessage {
 		qMessage(size_t messLen, int sock);
 		~qMessage();
 		// TODO: copy and move operators
+
+		// Getters
+		inline short *getBuffer() { return buffer; }
+		inline size_t getMessageLength() { return messLen; }
+		inline size_t getCurrentLength() { return currentLen; }
+		inline short getMessageType() { return type; }
 
 		int addMessgePart(const short *buf, int numBytes);
 		bool isMessageReadable() { return messLen == currentLen; }

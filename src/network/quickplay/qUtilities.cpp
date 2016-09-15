@@ -210,6 +210,11 @@ short qServer::readShort(const short *buf, int &bytesRead) {
 // qServerInstance methods
 
 void qServerInstance::handleData(short *&buf, int numBytes, int sock) {
+	unsigned int numOfShorts = numBytes / (sizeof(short));
+	if (numBytes % (sizeof(short)) == 0) { 			// the last byte is ignored because of the integer division (in case it is an odd number of bytes)
+		// The message should be formed of shorts -> something strange has happened -> note it down
+		cout << "server warning -> data received: data had an odd number of bytes\n";
+	}
     // find if there is already a message started in the socket
     map<unsigned int, qMessage>::iterator it = messageQueue.find(sock);
     if (it != messageQueue.end()) {
@@ -221,7 +226,7 @@ void qServerInstance::handleData(short *&buf, int numBytes, int sock) {
         short messLen = readShort(buf, 0);   // read the length of this message -> 1st short
 
         qMessage message(messLen, sock);
-        message.addMessagePart(buf + 1, numBytes - sizeof(short));
+        message.addMessagePart(buf + 1, numBytes - (sizeof(short)));
 
         // add the message to the map
         messageQueue.insert(pair<unsigned int, qMessage>(sock, message));
@@ -259,31 +264,23 @@ qMessage::~qMessage() {
 }
 
 int qMessage::addMessgePart(short *&buf, int numBytes) {
-    // check the message part to insert it in its position
-    short idPack = readShort(buf, recvLen);   // read the number of THIS package
-    // if idPack is 0 then next byte is the type
-    short type = readShort(buf, recvLen);     // read the type of the package
-    // set the type
-    this.messageType = type;
+    std::copy(buf, buf + numBytes)
 }
 
 void qMessage::handleMessage() {
 
 }
 
-unsigned int qMessage::getMessageLength() {
-	int length = 0;
-	vector< pair<unsigned short, short *> >::iterator it;
-	for (it = messageParts.begin(); it != messageParts.end(); ++it) {
-		length += it->first;
-	}
-	return length;
-}
-
 
 // PlayerCPU methods
 
 
+	// check the message part to insert it in its position
+    short idPack = readShort(buf, recvLen);   // read the number of THIS package
+    // if idPack is 0 then next byte is the type
+    short type = readShort(buf, recvLen);     // read the type of the package
+    // set the type
+    this.messageType = type;
 
     if (message.isMessageReadable()) {
         // read the message
