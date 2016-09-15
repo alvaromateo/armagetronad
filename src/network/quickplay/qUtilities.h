@@ -107,18 +107,16 @@ class qServerInstance : public qServer {
 	private:
 		map<unsigned int, qPlayer> playerQueue;			// Queue for holding the players that have to be paired
 		map<unsigned int, qMessage> messageQueue;		// Queue for holding the messages until they are processed
-/*
-		const map<unsigned int, qPlayer>& addPlayer(const qPlayer &player);
-		const map<unsigned int, qPlayer>& removePlayer(const qPlayer &player);
-		const map<unsigned int, qPlayer>& removePlayer(int index);
-*/
+		map<unsigned int, qMessage> sendingQueue;		// Queue for holding the messages to be sent by the server
+
 		void handleData(short *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
 
 	public:
 		qServerInstance() { setActiveServer(&this); }		// when a qServerInstance is created is automatically set to be the quickplayActiveServer
 
 		inline const map<unsigned int, qPlayer>& getPlayerQueue() { return playerQueue; }
-		inline const map<unsigned int, vector<qMessage> >& getMessageQueue() { return messageQueue; }
+		inline const map<unsigned int, qMessage>& getMessageQueue() { return messageQueue; }
+		inline const map<unsigned int, qMessage>& getSendingQueue() { return sendingQueue; }
 
 		qPlayer *getPlayer(int sock) { return &playerQueue[sock]; } 		// return the player which has sock assigned to its connection
 
@@ -131,18 +129,23 @@ class qServerInstance : public qServer {
 class qMessage {
 	private:
 		short *buffer; 			// holds the payload of the message
-		size_t messLen;
+		size_t messLen;			// doesn't take into account the header "message length" short (2 bytes)
 		size_t currentLen;
 		qPlayer *owner;
 
+		// Properties of the message
+		short type;
+
 	public:
-		qMessage();				// default aknowledge message
+		qMessage();								// default empty message
 		qMessage(size_t messLen, int sock);
 		~qMessage();
 		// TODO: copy and move operators
 
 		int addMessgePart(const short *buf, int numBytes);
 		bool isMessageReadable() { return messLen == currentLen; }
+
+		void handleMessage();
 };
 
 void setActiveServer(qServerInstance *instance);
