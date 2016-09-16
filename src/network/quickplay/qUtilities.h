@@ -129,12 +129,11 @@ class qServerInstance : public qServer {
 class qMessage {
 	private:
 		short *buffer; 			// holds the payload of the message
-		size_t messLen;			// doesn't take into account the header "message length" short (2 bytes)
+		size_t messLen;			// doesn't take into account the header "message length" short (length expressed in shorts)
 		size_t currentLen;
 		qPlayer *owner;			// TODO: do we need this??
 
-		// Properties of the message
-		short type;
+		// Properties of the message stored in the derived classes once the message is handled or when it is created to be sent
 
 	public:
 		qMessage();								// default empty message
@@ -148,13 +147,20 @@ class qMessage {
 		inline size_t getCurrentLength() { return currentLen; }
 		inline short getMessageType() { return type; }
 
-		int addMessgePart(const short *buf, int numBytes);
+		void addMessgePart(const short *buf, int numShorts);
 		bool isMessageReadable() { return messLen == currentLen; }
 
-		void handleMessage();
+		virtual void handleMessage() = 0;
 };
 
-void setActiveServer(qServerInstance *instance);
+/*
+ * Different classes for each type of message
+ */
+
+class qAckMessage : public qMessage {
+
+};
+
 
 
 // CPU PROPERTIES
@@ -166,6 +172,11 @@ class PlayerCPU {
 	public:
 		PlayerCPU();
 };
+
+
+// GLOBAL FUNCTIONS
+
+void setActiveServer(qServerInstance *instance);
 
 
 #endif

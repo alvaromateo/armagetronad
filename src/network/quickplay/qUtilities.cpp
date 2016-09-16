@@ -210,8 +210,8 @@ short qServer::readShort(const short *buf, int &bytesRead) {
 // qServerInstance methods
 
 void qServerInstance::handleData(short *&buf, int numBytes, int sock) {
-	unsigned int numOfShorts = numBytes / (sizeof(short));
-	if (numBytes % (sizeof(short)) == 0) { 			// the last byte is ignored because of the integer division (in case it is an odd number of bytes)
+	unsigned int numShorts = numBytes / (sizeof(short));
+	if (numBytes % (sizeof(short)) != 0) { 			// the last byte is ignored because of the integer division (in case it is an odd number of bytes)
 		// The message should be formed of shorts -> something strange has happened -> note it down
 		cout << "server warning -> data received: data had an odd number of bytes\n";
 	}
@@ -219,14 +219,14 @@ void qServerInstance::handleData(short *&buf, int numBytes, int sock) {
     map<unsigned int, qMessage>::iterator it = messageQueue.find(sock);
     if (it != messageQueue.end()) {
         // message already exists -> add the new part to it
-        (it->second).addMessagePart(buf, numBytes);
+        (it->second).addMessagePart(buf, numShorts);
     } else {
         // new message to handle -> create it and add the just received part
 
         short messLen = readShort(buf, 0);   // read the length of this message -> 1st short
 
         qMessage message(messLen, sock);
-        message.addMessagePart(buf + 1, numBytes - (sizeof(short)));
+        message.addMessagePart(buf + 1, numShorts - 1));
 
         // add the message to the map
         messageQueue.insert(pair<unsigned int, qMessage>(sock, message));
@@ -263,13 +263,11 @@ qMessage::~qMessage() {
     delete[] buffer;
 }
 
-int qMessage::addMessgePart(short *&buf, int numBytes) {
-    std::copy(buf, buf + numBytes)
+void qMessage::addMessgePart(short *&buf, int numShorts) {
+    std::copy(buf, buf + numShorts, buffer + currentLen);
+    currentLen += numShorts;
 }
 
-void qMessage::handleMessage() {
-
-}
 
 
 // PlayerCPU methods
