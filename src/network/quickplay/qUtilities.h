@@ -104,8 +104,8 @@ class qServer {
 		virtual short readShort(short *&buf, int &count);			// count is a reference to a number of bytes read control variable
 };
 
-typedef map<unsigned int, *qPlayer> PQ;
-typedef map<unsigned int, *qMessage> MQ;
+typedef map<int, *qPlayer> PQ;
+typedef map<int, *qMessage> MQ;
 
 /*
  * Class used to implement our quickplay server. The handle data will listen for the requests of
@@ -130,7 +130,9 @@ class qServerInstance : public qServer {
 		inline qPlayer *getPlayer(int sock) { return playerQueue[sock]; } 			// return the player which has sock assigned to its connection
 
 		void deleteMessage(MQ::iterator &it, MQ &queue);
+
 		void processMessages();
+		void sendMessages();
 };
 
 /*
@@ -147,7 +149,7 @@ class qMessage {
 
 	public:
 		qMessage();								// default empty message
-		qMessage(uchar type); 					// constructor called by derived classes default constructors
+		explicit qMessage(uchar type); 			// constructor called by derived classes default constructors
 		~qMessage();
 		// TODO: copy and move operators
 
@@ -157,10 +159,9 @@ class qMessage {
 		inline size_t getCurrentLength() { return currentLen; }
 
 		void addMessgePart(const short *buf, int numShorts);
-		bool isMessageReadable() { return (type != 0) && isMessageComplete(); }
-		bool isMessageComplete() { return messLen >= currentLen; }
+		bool isMessageReadable() { return messLen >= currentLen; }
 
-		virtual void handleMessage(); 				// to read the message and create the corresponding derived class
+		virtual void handleMessage(int sock); 		// to read the message and create the corresponding derived class
 };
 
 /*
@@ -174,7 +175,7 @@ class qAckMessage : public qMessage {
 	public:
 		qAckMessage();
 
-		void handleMessage();
+		void handleMessage(int sock);
 };
 
 /*
@@ -186,7 +187,7 @@ class qPlayerInfoMessage : public qMessage {
 	public:
 		qPlayerInfoMessage();
 
-		void handleMessage();
+		void handleMessage(int sock);
 };
 
 /*
@@ -197,7 +198,7 @@ class qMatchReadyMessage : public qMessage {
 	public:
 		qMatchReadyMessage();
 
-		void handleMessage();
+		void handleMessage(int sock);
 };
 
 /*
@@ -207,7 +208,27 @@ class qResendMessage : public qMessage {
 	public:
 		qResendMessage();
 
-		void handleMessage();
+		void handleMessage(int sock);
+};
+
+/*
+ * This message is sent by the server only to the player in charge of creating the game and hosting it.
+ */
+class qSendHostingOrder: public qMessage {
+	public:
+		qSendHostingOrder();
+
+		void handleMessage(int sock);
+};
+
+/*
+ * This message is sent by the server only to the players that will join a game started by another player.
+ */
+class qSendConnectInfo: public qMessage {
+	public:
+		qSendConnectInfo();
+
+		void handleMessage(int sock);
 };
 
 

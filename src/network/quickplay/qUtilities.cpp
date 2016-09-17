@@ -230,7 +230,7 @@ void qServerInstance::processMessages() {
     MQ::iterator it = messageQueue.begin();
     while (it != messageQueue.end()) {
         if ((it->second)->isMessageReadable()) {
-            (it->second)->handleMessage();
+            (it->second)->handleMessage(it->first);
             deleteMessage(it, messageQueue);        // the message has to be deleted to free memory
         } else {
             ++it;
@@ -254,19 +254,19 @@ qMessage *qServerInstance::createMessage(uchar type) {
             ret = new qAckMessage();
             break;
         case 2:         // player sends info and requests to join game
-            ret = NULL;
+            ret = new qPlayerInfoMessage();
             break;
         case 3:         // match host tells server it is ready 
-            ret = NULL;
+            ret = new qMatchReadyMessage();
             break;
         case 4:         // tells the master to resend the last information sent (cause it wasn't received)
-            ret = NULL;
+            ret = new qResendMessage();
             break;
-        case 5:         // server tells player to which address he has to connect play a match
-            ret = NULL;
+        case 5:         // server tells player that he/she has to be the host of the match 
+            ret = new qSendHostingOrder();
             break;
-        case 6:         // server tells player that he/she has to be the host of the match 
-            ret = NULL;
+        case 6:         // server tells player to which address he has to connect play a match
+            ret = new qSendConnectInfo();
             break;
         default:        // the type read doesn't match with any of the possible messages
             ret = new qMessage();
@@ -300,7 +300,7 @@ void qMessage::addMessgePart(uchar *&buf, int numBytes) {
     currentLen += numBytes;
 }
 
-void qMessage::handleMessage() {
+void qMessage::handleMessage(int sock) {
     // send to the player a message asking to resend as there was some error when reading the message
 }
 
@@ -309,33 +309,46 @@ void qMessage::handleMessage() {
 
 qAckMessage::qAckMessage() : qMessage(1) {}
 
-void qAckMessage::handleMessage() {
+void qAckMessage::handleMessage(int sock) {
 
 }
 
 
 qPlayerInfoMessage::qPlayerInfoMessage() : qMessage(2) {}
 
-void qPlayerInfoMessage::handleMessage() {
+void qPlayerInfoMessage::handleMessage(int sock) {
     
 }
 
+
+qMatchReadyMessage::qMatchReadyMessage() : qMessage(3) {}
+
+void qMatchReadyMessage::handleMessage(int sock) {
+    
+}
+
+
+qResendMessage::qResendMessage() : qMessage(4) {}
+
+void qResendMessage::handleMessage(int sock) {
+    
+}
+
+
+qSendHostingOrder::qSendHostingOrder() : qMessage(5) {}
+
+void qSendHostingOrder::handleMessage(int sock) {
+    
+}
+
+
+qSendConnectInfo::qSendConnectInfo() : qMessage(6) {}
+
+void qSendConnectInfo::handleMessage(int sock) {
+    
+}
 // PlayerCPU methods
 
-
-	// check the message part to insert it in its position
-    short idPack = readShort(buf, recvLen);   // read the number of THIS package
-    // if idPack is 0 then next byte is the type
-    short type = readShort(buf, recvLen);     // read the type of the package
-    // set the type
-    this.messageType = type;
-
-    if (message.isMessageReadable()) {
-        // read the message
-
-        
-
-    }
 
 nMessage& nMessage::ReadRaw(tString &s )
 {
