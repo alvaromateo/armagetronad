@@ -134,7 +134,7 @@ int qServer::getData() {
     int newfd;              // newfd -> new socket to send information
     int i, j, retval;
     int nbytes;
-    short buf[MAX_BUF_SIZE]; 		// values to store the data and the number of bytes received
+    unsigned char buf[MAX_BUF_SIZE](); 		// values to store the data and the number of bytes received
     
 
 	read_fds = this.master;
@@ -195,67 +195,95 @@ int qServer::getData() {
 
 }
 
-short qServer::readShort(const short *buf, int &bytesRead) {
-	if (bytesRead < MAX_BUF_SIZE) {
-		++bytesRead;
-		return ntohs(buf[bytesRead]);              // use ntohs to parse the data from the socket
-	} else if (bytesRead == MAX_BUF_SIZE) {
-		return 0;						           // buffer empty -> stop reading
-	} else {
-		return -1; 								   // unknown error -> abort
+short qServer::readShort(const uchar *buf, int &bytesRead) {
+	if (MAX_BUF_SIZE - bytesRead > sizeof(short)) {
+        short *reader = (short *)(buf + bytesRead);
+		bytesRead += sizeof(short);
+		return ntohs(*reader);                    // use ntohs to parse the data from the socket
 	}
+    return -1;              // the short could not be read
 }
 
 
 // qServerInstance methods
 
-void qServerInstance::handleData(short *&buf, int numBytes, int sock) {
-	unsigned int numShorts = numBytes / (sizeof(short));
-	if (numBytes % (sizeof(short)) != 0) { 			// the last byte is ignored because of the integer division (in case it is an odd number of bytes)
-		// The message should be formed of shorts -> something strange has happened -> note it down
-		cout << "server warning -> data received: data had an odd number of bytes\n";
-	}
+void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
+    uchar type = 0;
+
     // find if there is already a message started in the socket
-    map<unsigned int, qMessage>::iterator it = messageQueue.find(sock);
+    MQ::iterator it = messageQueue.find(sock);
     if (it != messageQueue.end()) {
         // message already exists -> add the new part to it
-        (it->second).addMessagePart(buf, numShorts);
+        (it->second)->addMessagePart(buf, numBytes);
     } else {
         // new message to handle -> create it and add the just received part
+        type = buf[0];
 
-        short messLen = readShort(buf, 0);   // read the length of this message -> 1st short
-
-        qMessage message(messLen, sock);
-        message.addMessagePart(buf + 1, numShorts - 1));
-
+        qMessage *message = createMessage(type);
+        message->addMessagePart(buf + 1, numBytes - 1);
         // add the message to the map
-        messageQueue.insert(pair<unsigned int, qMessage>(sock, message));
+        messageQueue.insert(pair<uint, *qMessage>(sock, message));
     }
 }
 
 void qServerInstance::processMessages() {
-    map<unsigned int, qMessage>::iterator it = messageQueue.begin();
+    MQ::iterator it = messageQueue.begin();
     while (it != messageQueue.end()) {
-        if ((it->second).isMessageReadable()) {
-            (it->second).handleMessage();
-            messageQueue.erase(it++);
+        if ((it->second)->isMessageReadable()) {
+            (it->second)->handleMessage();
+            deleteMessage(it, messageQueue);        // the message has to be deleted to free memory
         } else {
             ++it;
         }
     }
 }
 
+/*
+ * Iterator it has to point to a valid element. No checks are made in this method.
+ */
+void qServerInstance::deleteMessage(MQ::iterator &it, MQ &queue) {
+    delete it->second;
+    queue.erase(it++);
+}
+
+// creates each type of different messages
+qMessage *qServerInstance::createMessage(uchar type) {
+    qMessage *ret = NULL;
+    switch (type) {
+        case 1:         // ack message
+            ret = new qAckMessage();
+            break;
+        case 2:         // player sends info and requests to join game
+            ret = NULL;
+            break;
+        case 3:         // match host tells server it is ready 
+            ret = NULL;
+            break;
+        case 4:         // tells the master to resend the last information sent (cause it wasn't received)
+            ret = NULL;
+            break;
+        case 5:         // server tells player to which address he has to connect play a match
+            ret = NULL;
+            break;
+        case 6:         // server tells player that he/she has to be the host of the match 
+            ret = NULL;
+            break;
+        default:        // the type read doesn't match with any of the possible messages
+            ret = new qMessage();
+    }
+    return ret;
+}
+
 
 // qMessage methods
 
-qMessage::qMessage() {
-
+qMessage::qMessage() : buffer(NULL), messLen(0), currentLen(0), type(0) {
+    buffer = new uchar[MAX_BUF_SIZE]();
 }
 
-qMessage::qMessage(size_t messLen, int sock) : 
-    messLen(messLen), currentLen(0) {
-        owner = quickplayActiveServer->getPlayer(sock);
-        buffer = new short[MAX_BUF_SIZE];
+qMessage::qMessage(uchar type) : 
+    buffer(NULL), messLen(0), currentLen(0), type(type) {
+        buffer = new uchar[MAX_BUF_SIZE]();
 }
 
 qMessage::~qMessage() {
@@ -263,12 +291,34 @@ qMessage::~qMessage() {
     delete[] buffer;
 }
 
-void qMessage::addMessgePart(short *&buf, int numShorts) {
-    std::copy(buf, buf + numShorts, buffer + currentLen);
-    currentLen += numShorts;
+void qMessage::addMessgePart(uchar *&buf, int numBytes) {
+    if (messLen == 0 && currentLen >= sizeof(ushort)) {
+        messLen = readShort(buf, 0);
+    }
+    numBytes = numBytes > MAX_BUF_SIZE ? MAX_BUF_SIZE : numBytes;
+    std::copy(buf, buf + numBytes, buffer + currentLen);
+    currentLen += numBytes;
+}
+
+void qMessage::handleMessage() {
+    // send to the player a message asking to resend as there was some error when reading the message
 }
 
 
+// qMessage classes
+
+qAckMessage::qAckMessage() : qMessage(1) {}
+
+void qAckMessage::handleMessage() {
+
+}
+
+
+qPlayerInfoMessage::qPlayerInfoMessage() : qMessage(2) {}
+
+void qPlayerInfoMessage::handleMessage() {
+    
+}
 
 // PlayerCPU methods
 
@@ -283,19 +333,7 @@ void qMessage::addMessgePart(short *&buf, int numShorts) {
     if (message.isMessageReadable()) {
         // read the message
 
-        // read the rest of the payload -> switch depending on each type of transmission
-        switch (type) {
-            case 0:         // request to join a quickplay match --> undefined and the rest +1
-                break;
-            case 1:         // match host tells server it is ready
-                break;
-            case 2:         // player ack reception of address where the game is hosted
-                break;
-            case 3:         // tells the master to resend the last information sent (cause it wasn't received)
-                break;
-            default:        // return -1 because some error ocurred, as the type read doesn't mean anything
-                retval = -1;
-        }
+        
 
     }
 

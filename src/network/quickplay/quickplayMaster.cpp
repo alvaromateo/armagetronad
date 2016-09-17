@@ -50,5 +50,6 @@ using namespace std;
 
 
 int main(int argc, char **argv) {
-
+    // the players should have some type of timeout to resend automatically messages if they have
+    // not been acked by the server
 }
