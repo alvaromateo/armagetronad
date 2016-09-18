@@ -29,10 +29,54 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qUtilities.h"
 
 
-static qServerInstance *quickplayActiveServer;
+enum quickplayInstancesTypes {
+    Q_SERVER,
+    Q_PLAYER
+};
 
-void setActiveServer(qServerInstance *instance) {
-    quickplayActiveServer = instance;
+struct quickplayInstance {
+    quickplayInstancesTypes type;
+    union {
+        qServerInstance *quickplayActiveServer;
+        qPlayer *currentPlayer;
+    }
+
+    void setActiveServer(qServerInstance *instance);
+    void setCurrentPlayer(qPlayer *player);
+};
+
+void quickplayInstance::setActiveServer(qServerInstance *instance) {
+    this.type = Q_SERVER;
+    this.quickplayActiveServer = instance;
+}
+
+void quickplayInstance::setCurrentPlayer(qPlayer *player) {
+    this.type = Q_PLAYER;
+    this.currentPlayer = player;
+}
+
+static struct quickplayInstance *qInstance = NULL;
+
+
+// qMessageStorage methods
+
+qMessageStorage::~qMessageStorage() {
+    // delete messages
+}
+
+/*
+ * Iterator it has to point to a valid element. No checks are made in this method.
+ */
+void qMessageStorage::deleteMessage(MQ::iterator &it, QueueType queue) {
+    delete it->second;
+    queue.erase(it++);
+}
+
+/*
+ * Adds a message to the given queue
+ */
+void qMessageStorage::addMessage(pair<int, *qMessage> &elem, QueueType queue) {
+
 }
 
 
@@ -50,7 +94,10 @@ qConnection::qConnection(int socket, sockaddr_storage remoteaddress) {
 // qPlayer methods
 
 qPlayer::qPlayer() {
-
+    if (!qInstance) {
+        qInstance = new quickplayInstance();
+    }
+    setCurrentPlayer(&this); 
 }
 
 
@@ -195,23 +242,36 @@ int qServer::getData() {
 
 }
 
-short qServer::readShort(const uchar *buf, int &bytesRead) {
+ushort qServer::readShort(const uchar *buf, int &bytesRead) {
 	if (MAX_BUF_SIZE - bytesRead > sizeof(short)) {
-        short *reader = (short *)(buf + bytesRead);
-		bytesRead += sizeof(short);
-		return ntohs(*reader);                    // use ntohs to parse the data from the socket
+        ushort si;
+        si = buf[bytesRead];
+        si += buf[bytesRead + 1] << qCHAR_BITS;
+		bytesRead += qSHORT_BYTES;
+		return ntohs(si);                    // use ntohs to parse the data from the socket
 	}
-    return -1;              // the short could not be read
+    return 0;              // the short could not be read
 }
 
 
 // qServerInstance methods
 
+qServerInstance::qServerInstance() { 
+    if (!qInstance) {
+        qInstance = new quickplayInstance();
+    }
+    setActiveServer(&this); 
+}
+
+qServerInstance::~qServerInstance() {
+    // delete all memory reserved
+}
+
 void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
     uchar type = 0;
 
     // find if there is already a message started in the socket
-    MQ::iterator it = messageQueue.find(sock);
+    MQ::iterator it = getReceivedQueue().find(sock);
     if (it != messageQueue.end()) {
         // message already exists -> add the new part to it
         (it->second)->addMessagePart(buf, numBytes);
@@ -222,28 +282,25 @@ void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
         qMessage *message = createMessage(type);
         message->addMessagePart(buf + 1, numBytes - 1);
         // add the message to the map
-        messageQueue.insert(pair<uint, *qMessage>(sock, message));
+        addMessage(pair<int, *qMessage>(sock, message), RECEIVED);
     }
 }
 
 void qServerInstance::processMessages() {
-    MQ::iterator it = messageQueue.begin();
-    while (it != messageQueue.end()) {
+    MQ::iterator it = getReceivedQueue().begin();
+    while (it != getReceivedQueue().end()) {
         if ((it->second)->isMessageReadable()) {
             (it->second)->handleMessage(it->first);
-            deleteMessage(it, messageQueue);        // the message has to be deleted to free memory
+            deleteMessage(it, RECEIVED);        // the message has to be deleted to free memory
         } else {
             ++it;
         }
     }
 }
 
-/*
- * Iterator it has to point to a valid element. No checks are made in this method.
- */
+
 void qServerInstance::deleteMessage(MQ::iterator &it, MQ &queue) {
-    delete it->second;
-    queue.erase(it++);
+
 }
 
 // creates each type of different messages
@@ -292,7 +349,7 @@ qMessage::~qMessage() {
 }
 
 void qMessage::addMessgePart(uchar *&buf, int numBytes) {
-    if (messLen == 0 && currentLen >= sizeof(ushort)) {
+    if (messLen == 0 && (currentLen + numBytes) >= qSHORT_BYTES) {
         messLen = readShort(buf, 0);
     }
     numBytes = numBytes > MAX_BUF_SIZE ? MAX_BUF_SIZE : numBytes;
@@ -300,8 +357,11 @@ void qMessage::addMessgePart(uchar *&buf, int numBytes) {
     currentLen += numBytes;
 }
 
-void qMessage::handleMessage(int sock) {
+void qMessage::handleMessage(int sock) { // TODO: reformat according to new qMessageStorage class
     // send to the player a message asking to resend as there was some error when reading the message
+    qMessage *message = new qResendMessage();
+    (quickplayActiveServer->getSendingQueue()).insert(
+        pair<int, *qMessage>(sock, message));
 }
 
 

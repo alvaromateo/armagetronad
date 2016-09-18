@@ -42,12 +42,39 @@ This file will contain all the different classes needed.
 #define BACKLOG     	20      				// How many pending connections queue will hold
 #define QPLAYERS    	2       				// number of players for each game
 #define MAX_BUF_SIZE 	1024
+#define qCHAR_BITS 		8
+#define qSHORT_BYTES	2
 
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 
+
+typedef map<int, *qPlayer> PQ;
+typedef map<int, *qMessage> MQ;
+
+
+class qMessageStorage {
+	private:
+		MQ receivedQueue;		// Queue for holding the messages until they are processed
+		MQ sendingQueue;		// Queue for holding the messages to be sent
+
+	public:
+		enum QueueType {
+			RECEIVED,
+			SENT
+		};
+
+		qMessageStorage() {}
+		~qMessageStorage();
+
+		inline const MQ &getReceivedQueue() { return receivedQueue; }
+		inline const MQ &getSendingQueue() { return sendingQueue; }
+
+		void deleteMessage(MQ::iterator &it, QueueType queue);
+		void addMessage(pair<int, *qMessage> &elem, QueueType queue);
+};
 
 // NETWORK
 
@@ -64,14 +91,15 @@ class qConnection {
 		void sendData(const char *buf);													// sends to the remote connection the data in the buffer
 };
 
-class qPlayer : public qConnection {
+class qPlayer : public qConnection, public qMessageStorage {
 	private:
 		PlayerCPU cpu; 					// the priority assigned to that PC to act as the server of the game based on its computer
 		qConnection *matchServer;		// the server to which connect to start the match, set by reading the response of the server
 
 	public:
-		qPlayer();
+		qPlayer(); 			// set current player
 		qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl);
+		~qPlayer();
 
 		bool isMatchReady();
 };
@@ -101,35 +129,27 @@ class qServer {
 		inline int getListener() { return listener; }
 
 		virtual int getData();										// return number of bytes read or -1 if error
-		virtual short readShort(short *&buf, int &count);			// count is a reference to a number of bytes read control variable
+		virtual ushort readShort(uchar *&buf, int &bytesRead);		// count is a reference to a number of bytes read control variable
 };
 
-typedef map<int, *qPlayer> PQ;
-typedef map<int, *qMessage> MQ;
 
 /*
  * Class used to implement our quickplay server. The handle data will listen for the requests of
  * the different players and queue them or assign them to their corresponding match.
  */
-class qServerInstance : public qServer {
+class qServerInstance : public qServer, public qMessageStorage {
 	private:
 		PQ playerQueue;			// Queue for holding the players that have to be paired
-		MQ messageQueue;		// Queue for holding the messages until they are processed
-		MQ sendingQueue;		// Queue for holding the messages to be sent by the server
 
 		void handleData(uchar *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
 		qMessage *createMessage(uchar type);
 
 	public:
-		qServerInstance() { setActiveServer(&this); }		// when a qServerInstance is created is automatically set to be the quickplayActiveServer
+		qServerInstance();				// when a qServerInstance is created is automatically set to be the quickplayActiveServer
 		~qServerInstance();
 
 		inline const PQ &getPlayerQueue() { return playerQueue; }
-		inline const MQ &getMessageQueue() { return messageQueue; }
-		inline const MQ &getSendingQueue() { return sendingQueue; }
 		inline qPlayer *getPlayer(int sock) { return playerQueue[sock]; } 			// return the player which has sock assigned to its connection
-
-		void deleteMessage(MQ::iterator &it, MQ &queue);
 
 		void processMessages();
 		void sendMessages();
@@ -140,9 +160,10 @@ class qServerInstance : public qServer {
  */
 class qMessage {
 	private:
+		static const 
 		uchar *buffer; 			// holds the payload of the message
-		short messLen;			// doesn't take into account the header "message length" short (length expressed in shorts)
-		short currentLen;
+		ushort messLen;			// doesn't take into account the header "message length" short (length expressed in shorts)
+		ushort currentLen;
 
 		// Properties of the message stored in the derived classes once the message is handled or when it is created to be sent
 		uchar type;
@@ -154,12 +175,12 @@ class qMessage {
 		// TODO: copy and move operators
 
 		// Getters
-		inline short *getBuffer() { return buffer; }
-		inline size_t getMessageLength() { return messLen; }
-		inline size_t getCurrentLength() { return currentLen; }
+		inline uchar *getBuffer() { return buffer; }
+		inline ushort getMessageLength() { return messLen; }
+		inline ushort getCurrentLength() { return currentLen; }
 
 		void addMessgePart(const short *buf, int numShorts);
-		bool isMessageReadable() { return messLen >= currentLen; }
+		bool isMessageReadable() { return (messLen <= currentLen) || !type; }
 
 		virtual void handleMessage(int sock); 		// to read the message and create the corresponding derived class
 };
@@ -184,6 +205,9 @@ class qAckMessage : public qMessage {
  * should not use this type of message.
  */
 class qPlayerInfoMessage : public qMessage {
+	private:
+		PlayerCPU cpu;
+
 	public:
 		qPlayerInfoMessage();
 
@@ -236,16 +260,14 @@ class qSendConnectInfo: public qMessage {
 
 class PlayerCPU {
 	private:
-		int val;
+		uchar numCores;
+		uchar cpuSpeedInteger;
+		uchar cpuSpeedFractional;
 
 	public:
 		PlayerCPU();
+		PlayerCPU(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional);
 };
-
-
-// GLOBAL FUNCTIONS
-
-void setActiveServer(qServerInstance *instance);
 
 
 #endif
