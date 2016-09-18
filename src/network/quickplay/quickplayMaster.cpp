@@ -29,25 +29,15 @@ This server is only guaranteed to run on GNU/Linux distributions
 
 */
 
-#include <iostream>
-#include <fstream>
-#include <vector>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
+#include "qUtilities.h"
 
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-
-
-using namespace std;
-
+/*
+ * Preguntes:
+ * 1) rendiment?
+ * 2) threads?
+ * 3) threads amb select es util?
+ */
 
 int main(int argc, char **argv) {
     // the players should have some type of timeout to resend automatically messages if they have

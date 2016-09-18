@@ -32,8 +32,23 @@ This file will contain all the different classes needed.
 #define QUTILITIES_H
 
 
+#include <iostream>
+#include <fstream>
+#include <vector>
 #include <pair>
 #include <map>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 
 // Defines
@@ -51,8 +66,10 @@ typedef unsigned short ushort;
 typedef unsigned int uint;
 
 
-typedef map<int, *qPlayer> PQ;
-typedef map<int, *qMessage> MQ;
+class qMessage;
+
+typedef std::map<int, *qPlayer> PQ;
+typedef std::map<int, *qMessage> MQ;
 
 
 class qMessageStorage {
@@ -73,7 +90,11 @@ class qMessageStorage {
 		inline const MQ &getSendingQueue() { return sendingQueue; }
 
 		void deleteMessage(MQ::iterator &it, QueueType queue);
-		void addMessage(pair<int, *qMessage> &elem, QueueType queue);
+		void addMessage(std::pair<int, *qMessage> &elem, QueueType queue);
+
+		qMessage *createMessage(uchar type);
+		void processMessages();
+		void sendMessages();
 };
 
 // NETWORK
@@ -103,8 +124,6 @@ class qPlayer : public qConnection, public qMessageStorage {
 
 		bool isMatchReady();
 };
-
-class qMessage;
 
 /*
  * This class provides all common methods to create a server. It creates a server capable of listening
@@ -142,17 +161,13 @@ class qServerInstance : public qServer, public qMessageStorage {
 		PQ playerQueue;			// Queue for holding the players that have to be paired
 
 		void handleData(uchar *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
-		qMessage *createMessage(uchar type);
 
 	public:
-		qServerInstance();				// when a qServerInstance is created is automatically set to be the quickplayActiveServer
+		qServerInstance();
 		~qServerInstance();
 
 		inline const PQ &getPlayerQueue() { return playerQueue; }
 		inline qPlayer *getPlayer(int sock) { return playerQueue[sock]; } 			// return the player which has sock assigned to its connection
-
-		void processMessages();
-		void sendMessages();
 };
 
 /*
@@ -160,10 +175,9 @@ class qServerInstance : public qServer, public qMessageStorage {
  */
 class qMessage {
 	private:
-		static const 
 		uchar *buffer; 			// holds the payload of the message
-		ushort messLen;			// doesn't take into account the header "message length" short (length expressed in shorts)
-		ushort currentLen;
+		ushort messLen;			// doesn't take into account the header "message length" ushort and uchar type (length expressed in ushorts)
+		ushort currentLen;		// the actual length of the message (considering also the header)
 
 		// Properties of the message stored in the derived classes once the message is handled or when it is created to be sent
 		uchar type;
@@ -172,7 +186,6 @@ class qMessage {
 		qMessage();								// default empty message
 		explicit qMessage(uchar type); 			// constructor called by derived classes default constructors
 		~qMessage();
-		// TODO: copy and move operators
 
 		// Getters
 		inline uchar *getBuffer() { return buffer; }
@@ -180,9 +193,10 @@ class qMessage {
 		inline ushort getCurrentLength() { return currentLen; }
 
 		void addMessgePart(const short *buf, int numShorts);
-		bool isMessageReadable() { return (messLen <= currentLen) || !type; }
+		bool isMessageReadable() { return (messLen <= currentLen - 3) || !type; } 		// 3 are the header bytes
 
-		virtual void handleMessage(int sock); 		// to read the message and create the corresponding derived class
+		virtual void handleMessage(int sock, qMessageStorage *ms); 			// to read the message and create the corresponding derived class
+		virtual int send(int sock); 										// send the message
 };
 
 /*
@@ -195,8 +209,7 @@ class qMessage {
 class qAckMessage : public qMessage {
 	public:
 		qAckMessage();
-
-		void handleMessage(int sock);
+		void handleMessage(int sock, qMessageStorage *ms);
 };
 
 /*
@@ -210,8 +223,7 @@ class qPlayerInfoMessage : public qMessage {
 
 	public:
 		qPlayerInfoMessage();
-
-		void handleMessage(int sock);
+		void handleMessage(int sock, qMessageStorage *ms);
 };
 
 /*
@@ -221,8 +233,7 @@ class qPlayerInfoMessage : public qMessage {
 class qMatchReadyMessage : public qMessage {
 	public:
 		qMatchReadyMessage();
-
-		void handleMessage(int sock);
+		void handleMessage(int sock, qMessageStorage *ms);
 };
 
 /*
@@ -231,8 +242,7 @@ class qMatchReadyMessage : public qMessage {
 class qResendMessage : public qMessage {
 	public:
 		qResendMessage();
-
-		void handleMessage(int sock);
+		void handleMessage(int sock, qMessageStorage *ms);
 };
 
 /*
@@ -241,8 +251,7 @@ class qResendMessage : public qMessage {
 class qSendHostingOrder: public qMessage {
 	public:
 		qSendHostingOrder();
-
-		void handleMessage(int sock);
+		void handleMessage(int sock, qMessageStorage *ms);
 };
 
 /*
@@ -251,8 +260,7 @@ class qSendHostingOrder: public qMessage {
 class qSendConnectInfo: public qMessage {
 	public:
 		qSendConnectInfo();
-
-		void handleMessage(int sock);
+		void handleMessage(int sock, qMessageStorage *ms);
 };
 
 

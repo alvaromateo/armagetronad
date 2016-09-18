@@ -29,39 +29,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qUtilities.h"
 
 
-enum quickplayInstancesTypes {
-    Q_SERVER,
-    Q_PLAYER
-};
-
-struct quickplayInstance {
-    quickplayInstancesTypes type;
-    union {
-        qServerInstance *quickplayActiveServer;
-        qPlayer *currentPlayer;
-    }
-
-    void setActiveServer(qServerInstance *instance);
-    void setCurrentPlayer(qPlayer *player);
-};
-
-void quickplayInstance::setActiveServer(qServerInstance *instance) {
-    this.type = Q_SERVER;
-    this.quickplayActiveServer = instance;
-}
-
-void quickplayInstance::setCurrentPlayer(qPlayer *player) {
-    this.type = Q_PLAYER;
-    this.currentPlayer = player;
-}
-
-static struct quickplayInstance *qInstance = NULL;
+using namespace std;
 
 
 // qMessageStorage methods
 
 qMessageStorage::~qMessageStorage() {
     // delete messages
+    MQ::iterator receivedIt, sendIt;
+    for (receivedIt = receivedQueue.begin(); receivedIt != receivedQueue.end(); ++receivedIt) {
+        // delete elements
+        delete it->second;
+    }
+    for (sendIt = sendingQueue.begin(); sendIt != sendingQueue.end(); ++sendIt) {
+        // delete elements
+        delete it->second;
+    }
 }
 
 /*
@@ -69,14 +52,78 @@ qMessageStorage::~qMessageStorage() {
  */
 void qMessageStorage::deleteMessage(MQ::iterator &it, QueueType queue) {
     delete it->second;
-    queue.erase(it++);
+    switch(queue) {
+        case RECEIVED:
+            receivedQueue.erase(it++);
+            break;
+        case SENT:
+            sendingQueue.erase(it++);
+            break;
+    }
 }
 
 /*
  * Adds a message to the given queue
  */
 void qMessageStorage::addMessage(pair<int, *qMessage> &elem, QueueType queue) {
+    switch (queue) {
+        case RECEIVED:
+            receivedQueue.insert(elem);
+            break;
+        case SENT:
+            sendingQueue.insert(elem);
+            break;
+    }
+}
 
+void qMessageStorage::processMessages() {
+    MQ::iterator it = receivedQueue.begin();
+    while (it != receivedQueue.end()) {
+        if ((it->second)->isMessageReadable()) {
+            (it->second)->handleMessage(it->first, this);
+            deleteMessage(it, RECEIVED);        // the message has to be deleted to free memory
+        } else {
+            ++it;
+        }
+    }
+}
+
+void qMessageStorage::sendMessages() {
+    MQ::iterator it = sendingQueue.begin();
+    while (it != sendingQueue.end()) {
+        if (it->second->send(it->first) < 0) {      // send message and get error status
+            cout << "sending message -> some error occurred - trying to resend...\n";
+        }
+        ++it;
+    }
+}
+
+// creates each type of different messages
+qMessage *qMessageStorage::createMessage(uchar type) {
+    qMessage *ret = NULL;
+    switch (type) {
+        case 1:         // ack message
+            ret = new qAckMessage();
+            break;
+        case 2:         // player sends info and requests to join game
+            ret = new qPlayerInfoMessage();
+            break;
+        case 3:         // match host tells server it is ready 
+            ret = new qMatchReadyMessage();
+            break;
+        case 4:         // tells the master to resend the last information sent (cause it wasn't received)
+            ret = new qResendMessage();
+            break;
+        case 5:         // server tells player that he/she has to be the host of the match 
+            ret = new qSendHostingOrder();
+            break;
+        case 6:         // server tells player to which address he has to connect play a match
+            ret = new qSendConnectInfo();
+            break;
+        default:        // the type read doesn't match with any of the possible messages
+            ret = new qMessage();
+    }
+    return ret;
 }
 
 
@@ -93,12 +140,7 @@ qConnection::qConnection(int socket, sockaddr_storage remoteaddress) {
 
 // qPlayer methods
 
-qPlayer::qPlayer() {
-    if (!qInstance) {
-        qInstance = new quickplayInstance();
-    }
-    setCurrentPlayer(&this); 
-}
+qPlayer::qPlayer() {}
 
 
 // qServer methods
@@ -256,15 +298,14 @@ ushort qServer::readShort(const uchar *buf, int &bytesRead) {
 
 // qServerInstance methods
 
-qServerInstance::qServerInstance() { 
-    if (!qInstance) {
-        qInstance = new quickplayInstance();
-    }
-    setActiveServer(&this); 
-}
+qServerInstance::qServerInstance() {}
 
 qServerInstance::~qServerInstance() {
     // delete all memory reserved
+    PQ::iterator pqIt;
+    for (pqIt = playerQueue.begin(); pqIt != playerQueue.end(); ++pqIt) {
+        delete pqIt->second;
+    }
 }
 
 void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
@@ -272,7 +313,7 @@ void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
 
     // find if there is already a message started in the socket
     MQ::iterator it = getReceivedQueue().find(sock);
-    if (it != messageQueue.end()) {
+    if (it != getReceivedQueue().end()) {
         // message already exists -> add the new part to it
         (it->second)->addMessagePart(buf, numBytes);
     } else {
@@ -280,55 +321,10 @@ void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
         type = buf[0];
 
         qMessage *message = createMessage(type);
-        message->addMessagePart(buf + 1, numBytes - 1);
+        message->addMessagePart(buf, numBytes);
         // add the message to the map
         addMessage(pair<int, *qMessage>(sock, message), RECEIVED);
     }
-}
-
-void qServerInstance::processMessages() {
-    MQ::iterator it = getReceivedQueue().begin();
-    while (it != getReceivedQueue().end()) {
-        if ((it->second)->isMessageReadable()) {
-            (it->second)->handleMessage(it->first);
-            deleteMessage(it, RECEIVED);        // the message has to be deleted to free memory
-        } else {
-            ++it;
-        }
-    }
-}
-
-
-void qServerInstance::deleteMessage(MQ::iterator &it, MQ &queue) {
-
-}
-
-// creates each type of different messages
-qMessage *qServerInstance::createMessage(uchar type) {
-    qMessage *ret = NULL;
-    switch (type) {
-        case 1:         // ack message
-            ret = new qAckMessage();
-            break;
-        case 2:         // player sends info and requests to join game
-            ret = new qPlayerInfoMessage();
-            break;
-        case 3:         // match host tells server it is ready 
-            ret = new qMatchReadyMessage();
-            break;
-        case 4:         // tells the master to resend the last information sent (cause it wasn't received)
-            ret = new qResendMessage();
-            break;
-        case 5:         // server tells player that he/she has to be the host of the match 
-            ret = new qSendHostingOrder();
-            break;
-        case 6:         // server tells player to which address he has to connect play a match
-            ret = new qSendConnectInfo();
-            break;
-        default:        // the type read doesn't match with any of the possible messages
-            ret = new qMessage();
-    }
-    return ret;
 }
 
 
@@ -349,19 +345,34 @@ qMessage::~qMessage() {
 }
 
 void qMessage::addMessgePart(uchar *&buf, int numBytes) {
-    if (messLen == 0 && (currentLen + numBytes) >= qSHORT_BYTES) {
-        messLen = readShort(buf, 0);
+    if (messLen == 0 && (currentLen + numBytes) >= qSHORT_BYTES + 1) {
+        messLen = readShort(buf, 1);        // the first byte is the type
     }
     numBytes = numBytes > MAX_BUF_SIZE ? MAX_BUF_SIZE : numBytes;
     std::copy(buf, buf + numBytes, buffer + currentLen);
     currentLen += numBytes;
 }
 
-void qMessage::handleMessage(int sock) { // TODO: reformat according to new qMessageStorage class
+// handles partial sends
+int qMessage::send(int sock) {
+    int total = 0;
+    int bytesLeft = currentLen;
+    int n;
+    while (total < currentLen) {
+        n = send(sock, buffer + total, bytesLeft, 0);
+        if (n == -1) {
+            break;
+        }
+        total += n;
+        bytesLeft -= n;
+    }
+    return (n == -1) ? -1 : 0;      // return -1 on error and 0 on success
+}
+
+void qMessage::handleMessage(int sock, qMessageStorage *ms) {
     // send to the player a message asking to resend as there was some error when reading the message
     qMessage *message = new qResendMessage();
-    (quickplayActiveServer->getSendingQueue()).insert(
-        pair<int, *qMessage>(sock, message));
+    ms->addMessage(pair<int, *qMessage>(sock, message), SENT);
 }
 
 
@@ -369,83 +380,46 @@ void qMessage::handleMessage(int sock) { // TODO: reformat according to new qMes
 
 qAckMessage::qAckMessage() : qMessage(1) {}
 
-void qAckMessage::handleMessage(int sock) {
+void qAckMessage::handleMessage(int sock, qMessageStorage *ms) {
 
 }
 
 
 qPlayerInfoMessage::qPlayerInfoMessage() : qMessage(2) {}
 
-void qPlayerInfoMessage::handleMessage(int sock) {
+void qPlayerInfoMessage::handleMessage(int sock, qMessageStorage *ms) {
     
 }
 
 
 qMatchReadyMessage::qMatchReadyMessage() : qMessage(3) {}
 
-void qMatchReadyMessage::handleMessage(int sock) {
+void qMatchReadyMessage::handleMessage(int sock, qMessageStorage *ms) {
     
 }
 
 
 qResendMessage::qResendMessage() : qMessage(4) {}
 
-void qResendMessage::handleMessage(int sock) {
+void qResendMessage::handleMessage(int sock, qMessageStorage *ms) {
     
 }
 
 
 qSendHostingOrder::qSendHostingOrder() : qMessage(5) {}
 
-void qSendHostingOrder::handleMessage(int sock) {
+void qSendHostingOrder::handleMessage(int sock, qMessageStorage *ms) {
     
 }
 
 
 qSendConnectInfo::qSendConnectInfo() : qMessage(6) {}
 
-void qSendConnectInfo::handleMessage(int sock) {
+void qSendConnectInfo::handleMessage(int sock, qMessageStorage *ms) {
     
 }
+
+
 // PlayerCPU methods
 
 
-nMessage& nMessage::ReadRaw(tString &s )
-{
-    s.Clear();
-    unsigned short w,len;
-    Read(len);
-    if ( len > 0 )
-    {
-        s[len-1] = 0;
-        for(int i=0;i<len;i+=2){
-            Read(w);
-            
-            // carefully reverse the signed
-            // encoding logic
-            signed char lo = w & 0xff;
-            signed short hi = ((short)w) - lo;
-            hi >>= 8;
-
-            s[i] = lo;
-            if (i+1<len)
-                s[i+1] = hi;
-        }
-    }
-
-    return *this;
-}
-
-void nMessage::Read(unsigned short &x){
-    if (End()){
-        tOutput o;
-        st_Breakpoint();
-        o.SetTemplateParameter(1, senderID);
-        o << "$network_error_shortmessage";
-        con << o;
-        // sn_DisconnectUser(senderID, "$network_kill_error");
-        nReadError( false );
-    }
-    else
-        x=data(readOut++);
-}
