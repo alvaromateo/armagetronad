@@ -381,7 +381,11 @@ void qMessage::handleMessage(int sock, qMessageStorage *ms) {
 qAckMessage::qAckMessage() : qMessage(1) {}
 
 void qAckMessage::handleMessage(int sock, qMessageStorage *ms) {
-
+    /* 
+     * 1) if we are the server we don't care about ack's -> if the client has not received the message he will send a qResendMessage
+     *      when a timeout expires
+     * 2) if we are the client and we receive an 
+     */
 }
 
 
