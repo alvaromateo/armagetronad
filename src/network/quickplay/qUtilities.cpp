@@ -385,6 +385,10 @@ void qAckMessage::handleMessage(int sock, qMessageStorage *ms) {
      * 1) if we are the server we don't care about ack's -> if the client has not received the message he will send a qResendMessage
      *      when a timeout expires
      * 2) if we are the client and we receive an 
+     * 
+     * http://stackoverflow.com/questions/14650885/how-to-create-timer-events-using-c-11
+     * http://stackoverflow.com/questions/19022320/implementing-timer-with-timeout-handler-in-c
+     *
      */
 }
 
