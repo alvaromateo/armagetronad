@@ -74,13 +74,16 @@ typedef std::map<int, *qMessage> MQ;
 
 class qMessageStorage {
 	private:
+		// a message can only be in one queue at a time
 		MQ receivedQueue;		// Queue for holding the messages until they are processed
 		MQ sendingQueue;		// Queue for holding the messages to be sent
+		MQ pendingAckQueue; 	// Queue for holding the messages awaiting to be acked
 
 	public:
 		enum QueueType {
 			RECEIVED,
-			SENT
+			SENT,
+			ACK_PENDING
 		};
 
 		qMessageStorage() {}
@@ -168,6 +171,9 @@ class qServerInstance : public qServer, public qMessageStorage {
 
 		inline const PQ &getPlayerQueue() { return playerQueue; }
 		inline qPlayer *getPlayer(int sock) { return playerQueue[sock]; } 			// return the player which has sock assigned to its connection
+
+		bool enoughPlayersReady() {}
+		void prepareMatch() {}
 };
 
 /*
@@ -175,6 +181,7 @@ class qServerInstance : public qServer, public qMessageStorage {
  */
 class qMessage {
 	private:
+		bool sent; 				// if sent == true, then we are waiting for the ack to delete the message from the queue
 		uchar *buffer; 			// holds the payload of the message
 		ushort messLen;			// doesn't take into account the header "message length" ushort and uchar type (length expressed in ushorts)
 		ushort currentLen;		// the actual length of the message (considering also the header)

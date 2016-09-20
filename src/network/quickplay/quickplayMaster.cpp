@@ -29,6 +29,17 @@ This server is only guaranteed to run on GNU/Linux distributions
 
 */
 
+/*
+    BUILD!
+
+1) Only necessary first time: ./configure --enable-master DEBUGLEVEL=3 CODELEVEL=2
+2) make && make install
+3) make run
+
+If some of the languages strings are added, then re-run ./bootstrap.sh !!
+
+*/
+
 
 #include "qUtilities.h"
 
@@ -51,9 +62,14 @@ int main(int argc, char **argv) {
     // not been acked by the server
     qServerInstance quickServer();
     while (1) {
+        // handle connections
         quickServer.getData();
         quickServer.processMessages();
         quickServer.sendMessages();
+        // put players together for a game
+        if (quickServer.enoughPlayersReady()) {
+            quickServer.prepareMatch();
+        }
     }
 }
 
