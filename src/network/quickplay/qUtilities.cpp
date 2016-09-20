@@ -428,6 +428,13 @@ void qSendConnectInfo::handleMessage(int sock, qMessageStorage *ms) {
 }
 
 
+qSendPeersInfo::qSendPeersInfo() : qMessage(7) {}
+
+void qSendPeersInfo::handleMessage(int sock, qMessageStorage *ms) {
+    
+}
+
+
 // PlayerCPU methods
 
 

@@ -33,10 +33,17 @@ This server is only guaranteed to run on GNU/Linux distributions
 #include "qUtilities.h"
 
 /*
- * Preguntes:
- * 1) rendiment?
- * 2) threads?
- * 3) threads amb select es util?
+ * Implementar ping entre jugadors per ajudar a decidir al servidor
+ * Ack system
+ * Maquines virtuals per fer demo
+ */
+
+/*
+ * No se hace multithreading porque los paquetes que se envían se procesan muy rápidamente, ya que no 
+ * hay que hacer cálculos ni renderizar nada. Es por esto, que en lugar de crear un thread para atender
+ * cada conexión con un cliente se usa un select(), que se encarga de mirar cuando hay disponible
+ * información en alguno de los sockets usados. Cuando hay información disponible se procesa rápidamente
+ * y se continua esperando a recibir más información.
  */
 
 int main(int argc, char **argv) {

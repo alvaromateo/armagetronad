@@ -192,7 +192,9 @@ class qMessage {
 		inline ushort getMessageLength() { return messLen; }
 		inline ushort getCurrentLength() { return currentLen; }
 
-		void addMessgePart(const short *buf, int numShorts);
+		// addMessagePart is in charge to build the message when it has been divided in different parts by the network
+		// it just adds new information received to the buffer until it has the specified message length
+		void addMessgePart(const short *buf, int numShorts);			
 		bool isMessageReadable() { return (messLen <= currentLen - 3) || !type; } 		// 3 are the header bytes
 
 		virtual void handleMessage(int sock, qMessageStorage *ms); 			// to read the message and create the corresponding derived class
@@ -263,6 +265,17 @@ class qSendConnectInfo: public qMessage {
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
+/*
+ * This message is sent by the server to inform a player of his peers in the game, so that he/she
+ * can measure the ping between him and them and do the average, which is sent back to the server
+ * in a qPlayerInfo message.
+ */
+class qSendPeersInfo: public qMessage {
+	public:
+		qSendPeersInfo();
+		void handleMessage(int sock, qMessageStorage *ms);
+};
+
 
 // CPU PROPERTIES
 
@@ -271,6 +284,8 @@ class PlayerCPU {
 		uchar numCores;
 		uchar cpuSpeedInteger;
 		uchar cpuSpeedFractional;
+
+		ushort ping; 	// averaged from the player to the rest of the players
 
 	public:
 		PlayerCPU();
