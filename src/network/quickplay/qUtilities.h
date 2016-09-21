@@ -35,7 +35,7 @@ This file will contain all the different classes needed.
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <pair>
+#include <utility>
 #include <map>
 
 #include <stdio.h>
@@ -68,9 +68,9 @@ typedef unsigned int uint;
 
 class qMessage;
 
-typedef std::map<int, *qPlayer> PQ;
-typedef std::map<int, *qMessage> MQ;
-typedef std::pair<int, *qMessage> messElem; 	// messElem -> messageElement
+typedef std::map<int, qPlayer*> PQ;
+typedef std::map<int, qMessage*> MQ;
+typedef std::pair<int, qMessage*> messElem; 	// messElem -> messageElement
 
 
 class qMessageStorage {

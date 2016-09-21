@@ -32,7 +32,8 @@ This server is only guaranteed to run on GNU/Linux distributions
 /*
     BUILD!
 
-1) Only necessary first time: ./configure --enable-master DEBUGLEVEL=3 CODELEVEL=2
+1) Only necessary first time: ./configure --enable-master CODELEVEL=2
+    On mac add -> LIBS="-framework OpenGL -framework GLUT" 
 2) make && make install
 3) make run
 
