@@ -70,6 +70,7 @@ class qMessage;
 
 typedef std::map<int, *qPlayer> PQ;
 typedef std::map<int, *qMessage> MQ;
+typedef std::pair<int, *qMessage> messElem; 	// messElem -> messageElement
 
 
 class qMessageStorage {
@@ -79,21 +80,19 @@ class qMessageStorage {
 		MQ sendingQueue;		// Queue for holding the messages to be sent
 		MQ pendingAckQueue; 	// Queue for holding the messages awaiting to be acked
 
-	public:
-		enum QueueType {
-			RECEIVED,
-			SENT,
-			ACK_PENDING
-		};
+		void moveMessage(MQ::iterator &it, MQ &queue)
 
+	public:
 		qMessageStorage() {}
 		~qMessageStorage();
 
 		inline const MQ &getReceivedQueue() { return receivedQueue; }
 		inline const MQ &getSendingQueue() { return sendingQueue; }
+		inline const MQ &getPendingAckQueue() { return pendingAckQueue; }
 
-		void deleteMessage(MQ::iterator &it, QueueType queue);
-		void addMessage(std::pair<int, *qMessage> &elem, QueueType queue);
+		void deleteMessage(MQ::iterator &it, MQ &queue);
+		void deleteMessage(int sock, MQ &queue);
+		void addMessage(mElem &elem, MQ &queue);
 
 		qMessage *createMessage(uchar type);
 		void processMessages();

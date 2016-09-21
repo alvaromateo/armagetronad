@@ -50,30 +50,32 @@ qMessageStorage::~qMessageStorage() {
 /*
  * Iterator it has to point to a valid element. No checks are made in this method.
  */
-void qMessageStorage::deleteMessage(MQ::iterator &it, QueueType queue) {
+void qMessageStorage::deleteMessage(MQ::iterator &it, MQ &queue) {
     delete it->second;
-    switch(queue) {
-        case RECEIVED:
-            receivedQueue.erase(it++);
-            break;
-        case SENT:
-            sendingQueue.erase(it++);
-            break;
+    queue.erase(it++);
+}
+
+void qMessageStorage::deleteMessage(int sock, MQ &queue) {
+    MQ::iterator it = queue.find(sock);
+    if (it != queue.end()) {
+        delete it->second;
+        queue.erase(it++);
     }
+}
+
+/*
+ * Move element pointed by it from originQueue to destQueue.
+ */
+void qMessageStorage::moveMessage(MQ::iterator &it, MQ &originQueue, MQ &destQueue) {
+    addMessage(messElem(sock, message), destQueue);
+    deleteMessage(it, originQueue);
 }
 
 /*
  * Adds a message to the given queue
  */
-void qMessageStorage::addMessage(pair<int, *qMessage> &elem, QueueType queue) {
-    switch (queue) {
-        case RECEIVED:
-            receivedQueue.insert(elem);
-            break;
-        case SENT:
-            sendingQueue.insert(elem);
-            break;
-    }
+void qMessageStorage::addMessage(messElem &elem, MQ &queue) {
+    queue.insert(elem);
 }
 
 void qMessageStorage::processMessages() {
@@ -81,13 +83,15 @@ void qMessageStorage::processMessages() {
     while (it != receivedQueue.end()) {
         if ((it->second)->isMessageReadable()) {
             (it->second)->handleMessage(it->first, this);
-            deleteMessage(it, RECEIVED);        // the message has to be deleted to free memory
+            deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
         } else {
             ++it;
         }
     }
 }
 
+// qPlayer has to redefine this method to move the message to the ack queue and set a timeout
+// moveMessage(it, sendingQueue, zpendingAckQueue);
 void qMessageStorage::sendMessages() {
     MQ::iterator it = sendingQueue.begin();
     while (it != sendingQueue.end()) {
@@ -323,7 +327,7 @@ void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
         qMessage *message = createMessage(type);
         message->addMessagePart(buf, numBytes);
         // add the message to the map
-        addMessage(pair<int, *qMessage>(sock, message), RECEIVED);
+        addMessage(messElem(sock, message), getReceivedQueue());
     }
 }
 
@@ -372,7 +376,7 @@ int qMessage::send(int sock) {
 void qMessage::handleMessage(int sock, qMessageStorage *ms) {
     // send to the player a message asking to resend as there was some error when reading the message
     qMessage *message = new qResendMessage();
-    ms->addMessage(pair<int, *qMessage>(sock, message), SENT);
+    ms->addMessage(messElem(sock, message), getSendingQueue());
 }
 
 
@@ -381,15 +385,7 @@ void qMessage::handleMessage(int sock, qMessageStorage *ms) {
 qAckMessage::qAckMessage() : qMessage(1) {}
 
 void qAckMessage::handleMessage(int sock, qMessageStorage *ms) {
-    /* 
-     * 1) if we are the server we don't care about ack's -> if the client has not received the message he will send a qResendMessage
-     *      when a timeout expires
-     * 2) if we are the client and we receive an 
-     * 
-     * http://stackoverflow.com/questions/14650885/how-to-create-timer-events-using-c-11
-     * http://stackoverflow.com/questions/19022320/implementing-timer-with-timeout-handler-in-c
-     *
-     */
+    ms->deleteMessage(sock, getPendingAckQueue());
 }
 
 

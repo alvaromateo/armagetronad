@@ -57,6 +57,18 @@ If some of the languages strings are added, then re-run ./bootstrap.sh !!
  * y se continua esperando a recibir más información.
  */
 
+ /* 
+ * 1) if we are the server we don't care about ack's -> if the client has not received the message he will send a qResendMessage
+ *      when a timeout expires
+ * 2) if we are the client and we receive an ack -> we remove the message from pending ack
+ * 3) if we are the client we set a timeout after sending a message -> if the ack doesn't arrive after the timeout finishes
+ *      we resend the package --> repeat X number of times before stop trying
+ * 
+ * http://stackoverflow.com/questions/14650885/how-to-create-timer-events-using-c-11
+ * http://stackoverflow.com/questions/19022320/implementing-timer-with-timeout-handler-in-c
+ *
+ */
+
 int main(int argc, char **argv) {
     // the players should have some type of timeout to resend automatically messages if they have
     // not been acked by the server
