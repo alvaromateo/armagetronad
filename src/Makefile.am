@@ -175,9 +175,10 @@ armagetronad_main_master_SOURCES = network/master.cpp
 armagetronad_main_master_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_master_LDADD=libnetwork.a libtools.a
 
-armagetronad_main_quickplay_SOURCES = network/quickplayMaster.cpp
-armagetronad_main_quickplay_CXXFLAGS =$(libtron_a_CXXFLAGS)
-armagetronad_main_quickplay_LDADD=libnetwork.a libtools.a
+armagetronad_main_quickplay_SOURCES = network/quickplay/quickplayMaster.cpp\
+	network/quickplay/qUtilities.h network/quickplay/qUtilities.cpp
+armagetronad_main_quickplay_CXXFLAGS =
+armagetronad_main_quickplay_LDADD =
 endif
 
 ## Note: tron/gFloor.cpp is not referenced from the outside, but required anyway. So it can't be put into

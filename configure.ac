@@ -90,7 +90,7 @@ dnl enable_glout=yes)
 
 AC_ARG_ENABLE(master,
      AC_HELP_STRING([--enable-master],
-		[Build the master server]),
+		[Build the master and quickplay servers]),
      [case "${enableval}" in
        yes) armamaster=true ;;
        no)  armamaster=false ;;
@@ -977,6 +977,7 @@ echo "Options selected are:"
 echo "     Build Regular Game Client: $build_regular"
 echo "     Build Dedicated Server: $build_dedicated"
 echo "     Build Master Server: $armamaster"
+echo "     Build Quickplay Server: $armamaster"
 echo ""
 echo "Installation options:"
 echo "     Prefix: $prefix"
