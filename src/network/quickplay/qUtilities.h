@@ -42,10 +42,12 @@ This file will contain all the different classes needed.
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -67,6 +69,8 @@ typedef unsigned int uint;
 
 
 class qMessage;
+class qPlayer;
+
 
 typedef std::map<int, qPlayer*> PQ;
 typedef std::map<int, qMessage*> MQ;
@@ -80,24 +84,41 @@ class qMessageStorage {
 		MQ sendingQueue;		// Queue for holding the messages to be sent
 		MQ pendingAckQueue; 	// Queue for holding the messages awaiting to be acked
 
-		void moveMessage(MQ::iterator &it, MQ &queue)
+		void moveMessage(MQ::iterator &it, MQ &originQueue, MQ &destQueue);
 
 	public:
 		qMessageStorage() {}
 		~qMessageStorage();
 
-		inline const MQ &getReceivedQueue() { return receivedQueue; }
-		inline const MQ &getSendingQueue() { return sendingQueue; }
-		inline const MQ &getPendingAckQueue() { return pendingAckQueue; }
+		inline MQ &getReceivedQueue() { return receivedQueue; }
+		inline MQ &getSendingQueue() { return sendingQueue; }
+		inline MQ &getPendingAckQueue() { return pendingAckQueue; }
 
 		void deleteMessage(MQ::iterator &it, MQ &queue);
 		void deleteMessage(int sock, MQ &queue);
-		void addMessage(mElem &elem, MQ &queue);
+		void addMessage(const messElem &elem, MQ &queue);
 
 		qMessage *createMessage(uchar type);
 		void processMessages();
 		void sendMessages();
 };
+
+
+// CPU PROPERTIES
+
+class PlayerInfo {
+	private:
+		uchar numCores;
+		uchar cpuSpeedInteger;
+		uchar cpuSpeedFractional;
+
+		ushort ping; 	// averaged from the player to the rest of the players
+
+	public:
+		PlayerInfo();
+		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional);
+};
+
 
 // NETWORK
 
@@ -116,7 +137,7 @@ class qConnection {
 
 class qPlayer : public qConnection, public qMessageStorage {
 	private:
-		PlayerCPU cpu; 					// the priority assigned to that PC to act as the server of the game based on its computer
+		PlayerInfo cpu; 				// the priority assigned to that PC to act as the server of the game based on its computer
 		qConnection *matchServer;		// the server to which connect to start the match, set by reading the response of the server
 
 	public:
@@ -139,18 +160,17 @@ class qServer {
 		int fdmax; 								// maximum file descriptor number
 		fd_set master;          				// master file descriptor list
 
-		virtual void handleData(short *&buf, int numBytes, int sock) = 0;
+		virtual void handleData(const uchar *buf, int numBytes, int sock) = 0;
 
 	public:
 		qServer();
 
 		// getters
-		inline fd_set getFileDescriptorList() { return master; }
-		inline int getFDmax() { return fdmax; }
-		inline int getListener() { return listener; }
+		inline fd_set *getFileDescriptorList() { return &master; }
+		inline int *getFDmax() { return &fdmax; }
+		inline int *getListener() { return &listener; }
 
-		virtual int getData();										// return number of bytes read or -1 if error
-		virtual ushort readShort(uchar *&buf, int &bytesRead);		// count is a reference to a number of bytes read control variable
+		virtual void getData() = 0;											// return number of bytes read or -1 if error
 };
 
 
@@ -162,16 +182,20 @@ class qServerInstance : public qServer, public qMessageStorage {
 	private:
 		PQ playerQueue;			// Queue for holding the players that have to be paired
 
-		void handleData(uchar *&buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
+		void handleData(const uchar *buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
 
 	public:
 		qServerInstance();
 		~qServerInstance();
 
-		inline const PQ &getPlayerQueue() { return playerQueue; }
-		inline qPlayer *getPlayer(int sock) { return playerQueue[sock]; } 			// return the player which has sock assigned to its connection
+		void getData();
 
-		bool enoughPlayersReady() {}
+		inline const PQ &getPlayerQueue() { return playerQueue; }
+		inline void addPlayer(qPlayer *&newPlayer, int sock) { 
+			playerQueue.insert(std::pair<int, qPlayer*>(sock, newPlayer));
+		}
+
+		bool enoughPlayersReady() { return false; }			// TODO: end this function
 		void prepareMatch() {}
 };
 
@@ -180,7 +204,6 @@ class qServerInstance : public qServer, public qMessageStorage {
  */
 class qMessage {
 	private:
-		bool sent; 				// if sent == true, then we are waiting for the ack to delete the message from the queue
 		uchar *buffer; 			// holds the payload of the message
 		ushort messLen;			// doesn't take into account the header "message length" ushort and uchar type (length expressed in ushorts)
 		ushort currentLen;		// the actual length of the message (considering also the header)
@@ -188,10 +211,12 @@ class qMessage {
 		// Properties of the message stored in the derived classes once the message is handled or when it is created to be sent
 		uchar type;
 
+		ushort readShort(const uchar *buf, int &bytesRead);			// bytesRead is a reference to a number of bytes read control variable
+
 	public:
 		qMessage();								// default empty message
 		explicit qMessage(uchar type); 			// constructor called by derived classes default constructors
-		~qMessage();
+		virtual ~qMessage();
 
 		// Getters
 		inline uchar *getBuffer() { return buffer; }
@@ -200,7 +225,7 @@ class qMessage {
 
 		// addMessagePart is in charge to build the message when it has been divided in different parts by the network
 		// it just adds new information received to the buffer until it has the specified message length
-		void addMessgePart(const short *buf, int numShorts);			
+		void addMessagePart(const uchar *buf, int numShorts);			
 		bool isMessageReadable() { return (messLen <= currentLen - 3) || !type; } 		// 3 are the header bytes
 
 		virtual void handleMessage(int sock, qMessageStorage *ms); 			// to read the message and create the corresponding derived class
@@ -217,6 +242,7 @@ class qMessage {
 class qAckMessage : public qMessage {
 	public:
 		qAckMessage();
+		~qAckMessage() {}
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
@@ -227,10 +253,11 @@ class qAckMessage : public qMessage {
  */
 class qPlayerInfoMessage : public qMessage {
 	private:
-		PlayerCPU cpu;
+		PlayerInfo info;
 
 	public:
 		qPlayerInfoMessage();
+		~qPlayerInfoMessage() {}
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
@@ -241,6 +268,7 @@ class qPlayerInfoMessage : public qMessage {
 class qMatchReadyMessage : public qMessage {
 	public:
 		qMatchReadyMessage();
+		~qMatchReadyMessage() {}
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
@@ -250,6 +278,7 @@ class qMatchReadyMessage : public qMessage {
 class qResendMessage : public qMessage {
 	public:
 		qResendMessage();
+		~qResendMessage() {}
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
@@ -259,6 +288,7 @@ class qResendMessage : public qMessage {
 class qSendHostingOrder: public qMessage {
 	public:
 		qSendHostingOrder();
+		~qSendHostingOrder() {}
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
@@ -268,6 +298,7 @@ class qSendHostingOrder: public qMessage {
 class qSendConnectInfo: public qMessage {
 	public:
 		qSendConnectInfo();
+		~qSendConnectInfo() {}
 		void handleMessage(int sock, qMessageStorage *ms);
 };
 
@@ -279,23 +310,8 @@ class qSendConnectInfo: public qMessage {
 class qSendPeersInfo: public qMessage {
 	public:
 		qSendPeersInfo();
+		~qSendPeersInfo() {}
 		void handleMessage(int sock, qMessageStorage *ms);
-};
-
-
-// CPU PROPERTIES
-
-class PlayerCPU {
-	private:
-		uchar numCores;
-		uchar cpuSpeedInteger;
-		uchar cpuSpeedFractional;
-
-		ushort ping; 	// averaged from the player to the rest of the players
-
-	public:
-		PlayerCPU();
-		PlayerCPU(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional);
 };
 
 

@@ -680,10 +680,6 @@ static nDescriptor RequestBigServerInfoMasterDescriptor(55,nServerInfo::GiveBigS
 // request big server information from master server/broadcast
 //atic nDescriptor RequestExtraServerInfoDescriptor(55,nServerInfo::GiveExtraServerInfo,"extra_request", true);
 
-// Quick play descriptors
-static nDescriptor RequestServerToJoinGame(345, nServerInfo::RequestToJoinGame, "lala", true);
-
-
 static bool net_Accept()
 {
     return
@@ -1812,7 +1808,6 @@ void nServerInfo::QueryServer()                                  // start to get
 {
     // determine whether we should query directly or via the master
     bool queryDirectly = false;
-    bool queryQuickplay = false;
     switch( queryType_ )
     {
     case QUERY_ALL:
@@ -1826,10 +1821,6 @@ void nServerInfo::QueryServer()                                  // start to get
         break;
     case QUERY_NONE:
         queryDirectly = false;
-        break;
-    case QUERY_QUICKPLAY:
-        queryDirectly = true;
-        queryQuickplay = true;
         break;
     }
 
@@ -1921,12 +1912,7 @@ void nServerInfo::QueryServer()                                  // start to get
         con << "Pinging " << GetName() << "\n";
 #endif
 
-        tJUST_CONTROLLED_PTR< nMessage > req;
-        if ( queryQuickplay ) {
-            req = tNEW(nMessage)(RequestServerToJoinGame);
-        } else {
-            req = tNEW(nMessage)(RequestBigServerInfoDescriptor);
-        }
+        tJUST_CONTROLLED_PTR< nMessage > req = tNEW(nMessage)(RequestBigServerInfoDescriptor);
         req->ClearMessageID();
         req->SendImmediately(0, false);
         nMessage::SendCollected(0);

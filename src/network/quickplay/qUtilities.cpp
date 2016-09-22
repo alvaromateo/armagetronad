@@ -36,14 +36,15 @@ using namespace std;
 
 qMessageStorage::~qMessageStorage() {
     // delete messages
-    MQ::iterator receivedIt, sendIt;
+    MQ::iterator receivedIt, sendIt, pendingIt;
     for (receivedIt = receivedQueue.begin(); receivedIt != receivedQueue.end(); ++receivedIt) {
-        // delete elements
-        delete it->second;
+        delete receivedIt->second;
     }
     for (sendIt = sendingQueue.begin(); sendIt != sendingQueue.end(); ++sendIt) {
-        // delete elements
-        delete it->second;
+        delete sendIt->second;
+    }
+    for (pendingIt = pendingAckQueue.begin(); pendingIt != pendingAckQueue.end(); ++pendingIt) {
+        delete pendingIt->second;
     }
 }
 
@@ -67,14 +68,14 @@ void qMessageStorage::deleteMessage(int sock, MQ &queue) {
  * Move element pointed by it from originQueue to destQueue.
  */
 void qMessageStorage::moveMessage(MQ::iterator &it, MQ &originQueue, MQ &destQueue) {
-    addMessage(messElem(sock, message), destQueue);
+    addMessage(messElem(it->first, it->second), destQueue);
     deleteMessage(it, originQueue);
 }
 
 /*
  * Adds a message to the given queue
  */
-void qMessageStorage::addMessage(messElem &elem, MQ &queue) {
+void qMessageStorage::addMessage(const messElem &elem, MQ &queue) {
     queue.insert(elem);
 }
 
@@ -137,7 +138,7 @@ qConnection::qConnection() {
 
 }
 
-qConnection::qConnection(int socket, sockaddr_storage remoteaddress) {
+qConnection::qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl) {
 
 }
 
@@ -145,6 +146,10 @@ qConnection::qConnection(int socket, sockaddr_storage remoteaddress) {
 // qPlayer methods
 
 qPlayer::qPlayer() {}
+
+qPlayer::qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl) {}
+
+qPlayer::~qPlayer() {}
 
 
 // qServer methods
@@ -166,32 +171,32 @@ qServer::qServer() {
     retval = getaddrinfo(NULL, PORT, &hints, &servinfo);
     if (retval != 0) {
         cerr << "server getaddrinfo: " << gai_strerror(retval) << endl;
-        return 1;
+        exit(1);
     }
 
     // loop through all the results and bind to the first we can
     for (p = servinfo; p != NULL; p = p->ai_next) {
-        this.listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (this.listener == -1) {
+        this->listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (this->listener == -1) {
             cout << "socked failed\n";
             continue;   // there was an error when opening the file, so we look into the next addrinfo stored in servinfo
         }
 
-        retval = fcntl(socket, F_SETFL, O_NONBLOCK);
+        retval = fcntl(this->listener, F_SETFL, O_NONBLOCK);
         if (retval == -1) {
             perror("fcntl failed\n");
-            exit(1);
-        }
-
-        retval = setsockopt(this.listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
-        if (retval == -1) {
-            perror("setsockopt failed\n");    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
             exit(2);
         }
 
-        retval = bind(this.listener, p->ai_addr, p->ai_addrlen);
+        retval = setsockopt(this->listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
         if (retval == -1) {
-            close(this.listener);
+            perror("setsockopt failed\n");    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
+            exit(3);
+        }
+
+        retval = bind(this->listener, p->ai_addr, p->ai_addrlen);
+        if (retval == -1) {
+            close(this->listener);
             cout << "server bind failed\n";
             continue;
         }
@@ -199,65 +204,82 @@ qServer::qServer() {
         break; // if this instruction is reached it means all three system calls were successful and we can proceed
     }
 
-    freeaddrinf(servinfo);  // this struct is no longer needed as we are already bound to the port
+    freeaddrinfo(servinfo);  // this struct is no longer needed as we are already bound to the port
 
     if (p == NULL) {
         perror("server: failed to bind\n");
-        exit(3);
-    }
-
-    retval = listen(this.listener, BACKLOG);
-    if (retval == -1) {
-        perror("server: listen failed\n");
         exit(4);
     }
 
-    // initialize this
-    FD_ZERO(&this.master);       				// clear the master set
-	FD_SET(this.listener, this.master);       	// adds the listener to the master set of descriptors
-    this.fdmax = this.listener;         		// keep track of the maximum file descriptor
-
-    cout << "server started\n");
-}
-
-int qServer::getData() {
-	fd_set read_fds;        // temporal file descriptor list for select() function
-	FD_ZERO(&read_fds);
-
-    int newfd;              // newfd -> new socket to send information
-    int i, j, retval;
-    int nbytes;
-    unsigned char buf[MAX_BUF_SIZE](); 		// values to store the data and the number of bytes received
-    
-
-	read_fds = this.master;
-    retval = select(this.fdmax + 1, &read_fds, NULL, NULL, NULL);
+    retval = listen(this->listener, BACKLOG);
     if (retval == -1) {
-        perror("server: select failed\n");
+        perror("server: listen failed\n");
         exit(5);
     }
 
+    // initialize this
+    FD_ZERO(&this->master);       				// clear the master set
+	FD_SET(this->listener, &this->master);      // adds the listener to the master set of descriptors
+    this->fdmax = this->listener;         		// keep track of the maximum file descriptor
+
+    cout << "server started\n";
+}
+
+
+// qServerInstance methods
+
+qServerInstance::qServerInstance() {}
+
+qServerInstance::~qServerInstance() {
+    // delete all memory reserved
+    PQ::iterator pqIt;
+    for (pqIt = playerQueue.begin(); pqIt != playerQueue.end(); ++pqIt) {
+        delete pqIt->second;
+    }
+}
+
+void qServerInstance::getData() {
+    fd_set read_fds;        // temporal file descriptor list for select() function
+    FD_ZERO(&read_fds);
+
+    int newfd;              // newfd -> new socket to send information
+    int i, retval;
+    int nbytes;
+    uchar buf[MAX_BUF_SIZE];        // values to store the data and the number of bytes received
+    
+    // values from parent class
+    int *fdmax = getFDmax();
+    int *listener = getListener();
+    fd_set *master = getFileDescriptorList();
+
+    read_fds = *master;
+    retval = select(*fdmax + 1, &read_fds, NULL, NULL, NULL);
+    if (retval == -1) {
+        perror("server: select failed\n");
+        exit(6);
+    }
+
     // loop through the existing connections looking for data to read
-    for (i = 0; i <= this.fdmax; ++i) {
+    for (i = 0; i <= *fdmax; ++i) {
         if (FD_ISSET(i, &read_fds)) {   // there is some data ready
-            if (i == listener) {        // new connection
-            	socklen_t addrlen;
-            	struct sockaddr_storage remoteaddr;
+            if (i == *listener) {        // new connection
+                socklen_t addrlen;
+                struct sockaddr_storage remoteaddr;
 
                 addrlen = sizeof(remoteaddr);
-                newfd = accept(listener, (struct sockaddr *) &remoteaddr, &addrlen);
+                newfd = accept(*listener, (struct sockaddr *) &remoteaddr, &addrlen);
 
                 if (newfd == -1) {
                     perror("server: accept failed\n");
                 } else {
-                    FD_SET(newfd, &master);
-                    if (newfd > fdmax) {
-                        fdmax = newfd;      // keep track of the max
+                    FD_SET(newfd, master);
+                    if (newfd > *fdmax) {
+                        *fdmax = newfd;      // keep track of the max
                     }
                     cout << "server -> select: new connection on socket " << i << endl;
 
-                    qPlayer newPlayer(newfd, remoteaddr, addrlen); 		// create new player
-                    addPlayer(newPlayer);								// add player to the queue of players
+                    qPlayer *newPlayer = new qPlayer(newfd, remoteaddr, addrlen);     // create new player
+                    addPlayer(newPlayer, newfd);                                     // add player to the queue of players
                 }
 
                 retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
@@ -277,7 +299,7 @@ int qServer::getData() {
 
                     // we don't need this socket any more
                     close(i);
-                    FD_CLR(i, &master);     // remove it from master set
+                    FD_CLR(i, master);     // remove it from master set
                 }  else {
                     // we got some data from a client -> handle it
                     handleData(buf, nbytes, i);
@@ -288,31 +310,7 @@ int qServer::getData() {
 
 }
 
-ushort qServer::readShort(const uchar *buf, int &bytesRead) {
-	if (MAX_BUF_SIZE - bytesRead > sizeof(short)) {
-        ushort si;
-        si = buf[bytesRead];
-        si += buf[bytesRead + 1] << qCHAR_BITS;
-		bytesRead += qSHORT_BYTES;
-		return ntohs(si);                    // use ntohs to parse the data from the socket
-	}
-    return 0;              // the short could not be read
-}
-
-
-// qServerInstance methods
-
-qServerInstance::qServerInstance() {}
-
-qServerInstance::~qServerInstance() {
-    // delete all memory reserved
-    PQ::iterator pqIt;
-    for (pqIt = playerQueue.begin(); pqIt != playerQueue.end(); ++pqIt) {
-        delete pqIt->second;
-    }
-}
-
-void qServerInstance::handleData(uchar *&buf, int numBytes, int sock) {
+void qServerInstance::handleData(const uchar *buf, int numBytes, int sock) {
     uchar type = 0;
 
     // find if there is already a message started in the socket
@@ -348,9 +346,10 @@ qMessage::~qMessage() {
     delete[] buffer;
 }
 
-void qMessage::addMessgePart(uchar *&buf, int numBytes) {
+void qMessage::addMessagePart(const uchar *buf, int numBytes) {
+    int bytesRead = 1;
     if (messLen == 0 && (currentLen + numBytes) >= qSHORT_BYTES + 1) {
-        messLen = readShort(buf, 1);        // the first byte is the type
+        messLen = readShort(buf, bytesRead);        // the first byte is the type
     }
     numBytes = numBytes > MAX_BUF_SIZE ? MAX_BUF_SIZE : numBytes;
     std::copy(buf, buf + numBytes, buffer + currentLen);
@@ -363,7 +362,7 @@ int qMessage::send(int sock) {
     int bytesLeft = currentLen;
     int n;
     while (total < currentLen) {
-        n = send(sock, buffer + total, bytesLeft, 0);
+        n = ::send(sock, buffer + total, bytesLeft, 0);
         if (n == -1) {
             break;
         }
@@ -373,10 +372,21 @@ int qMessage::send(int sock) {
     return (n == -1) ? -1 : 0;      // return -1 on error and 0 on success
 }
 
+ushort qMessage::readShort(const uchar *buf, int &bytesRead) {
+    if (MAX_BUF_SIZE - bytesRead > (int) sizeof(short)) {
+        ushort si;
+        si = buf[bytesRead];
+        si += buf[bytesRead + 1] << qCHAR_BITS;
+        bytesRead += qSHORT_BYTES;
+        return ntohs(si);                    // use ntohs to parse the data from the socket
+    }
+    return 0;              // the short could not be read
+}
+
 void qMessage::handleMessage(int sock, qMessageStorage *ms) {
     // send to the player a message asking to resend as there was some error when reading the message
     qMessage *message = new qResendMessage();
-    ms->addMessage(messElem(sock, message), getSendingQueue());
+    ms->addMessage(messElem(sock, message), ms->getSendingQueue());
 }
 
 
@@ -385,7 +395,7 @@ void qMessage::handleMessage(int sock, qMessageStorage *ms) {
 qAckMessage::qAckMessage() : qMessage(1) {}
 
 void qAckMessage::handleMessage(int sock, qMessageStorage *ms) {
-    ms->deleteMessage(sock, getPendingAckQueue());
+    ms->deleteMessage(sock, ms->getPendingAckQueue());
 }
 
 
@@ -431,6 +441,10 @@ void qSendPeersInfo::handleMessage(int sock, qMessageStorage *ms) {
 }
 
 
-// PlayerCPU methods
+// PlayerInfo methods
+
+PlayerInfo::PlayerInfo() {
+
+}
 
 
