@@ -51,54 +51,87 @@ qMessageStorage::~qMessageStorage() {
 /*
  * Iterator it has to point to a valid element. No checks are made in this method.
  */
-void qMessageStorage::deleteMessage(MQ::iterator &it, MQ &queue) {
-    delete it->second;
-    queue.erase(it++);
+void qMessageStorage::deleteMessage(MQ::iterator it, MQ &queue) {
+    // delete the pointer to the message only if the message is only in one queue
+    if (getSocketReferences(it) <= 1) {
+        cout << "message storage -> deleting message from memory\n";
+        delete it->second;
+        it->second = NULL;
+    }
+    cout << "message storage -> deleting message from queue\n";
+    queue.erase(it);
 }
 
 void qMessageStorage::deleteMessage(int sock, MQ &queue) {
     MQ::iterator it = queue.find(sock);
     if (it != queue.end()) {
-        delete it->second;
-        queue.erase(it++);
+        deleteMessage(it, queue);
     }
 }
 
 /*
  * Move element pointed by it from originQueue to destQueue.
  */
-void qMessageStorage::moveMessage(MQ::iterator &it, MQ &originQueue, MQ &destQueue) {
-    addMessage(messElem(it->first, it->second), destQueue);
-    deleteMessage(it, originQueue);
+void qMessageStorage::moveMessage(MQ::iterator it, MQ &originQueue, MQ &destQueue) {
+    cout << "message storage -> moving message from queue:\n";
+    if (it != originQueue.end()) {
+        addMessage(messElem(it->first, it->second), destQueue);
+        deleteMessage(it, originQueue);
+    }
+}
+
+/*
+ * Count the number of times a same message appears in the queues.
+ */
+int qMessageStorage::getSocketReferences(const MQ::iterator &it) {
+    int count = 0;
+    MQ::iterator reference = receivedQueue.find(it->first);
+    // Check receivedQueue
+    if (reference != receivedQueue.end()) {
+        if (reference->second == it->second) {
+            ++count;
+        }
+    }
+    // Check sendingQueue
+    reference = sendingQueue.find(it->first);
+    if (reference != sendingQueue.end()) {
+        if (reference->second == it->second) {
+            ++count;
+        }
+    }
+    // Check pendingAckQueue
+    reference = pendingAckQueue.find(it->first);
+    if (reference != pendingAckQueue.end()) {
+        if (reference->second == it->second) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+MQ::iterator qMessageStorage::getMessageFromQueue(int sock, MQ &queue) {
+    return queue.find(sock);
 }
 
 /*
  * Adds a message to the given queue
  */
 void qMessageStorage::addMessage(const messElem &elem, MQ &queue) {
+    cout << "message storage -> adding message to queue\n";
     queue.insert(elem);
 }
 
-void qMessageStorage::processMessages() {
-    MQ::iterator it = receivedQueue.begin();
-    while (it != receivedQueue.end()) {
-        if ((it->second)->isMessageReadable()) {
-            (it->second)->handleMessage(it->first, this);
-            deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
-        } else {
-            ++it;
-        }
-    }
-}
-
 // qPlayer has to redefine this method to move the message to the ack queue and set a timeout
-// moveMessage(it, sendingQueue, zpendingAckQueue);
+// moveMessage(it, sendingQueue, pendingAckQueue);
 void qMessageStorage::sendMessages() {
     MQ::iterator it = sendingQueue.begin();
     while (it != sendingQueue.end()) {
         if (it->second->send(it->first) < 0) {      // send message and get error status
             cout << "sending message -> some error occurred - trying to resend...\n";
         }
+        // move message to ack queue
+        moveMessage(it, sendingQueue, pendingAckQueue);
         ++it;
     }
 }
@@ -107,23 +140,26 @@ void qMessageStorage::sendMessages() {
 qMessage *qMessageStorage::createMessage(uchar type) {
     qMessage *ret = NULL;
     switch (type) {
-        case 1:         // ack message
+        case ACK:         // ack message
             ret = new qAckMessage();
             break;
-        case 2:         // player sends info and requests to join game
+        case PLAYER_INFO:           // player sends info and requests to join game
             ret = new qPlayerInfoMessage();
             break;
-        case 3:         // match host tells server it is ready 
+        case MATCH_READY:           // match host tells server it is ready 
             ret = new qMatchReadyMessage();
             break;
-        case 4:         // tells the master to resend the last information sent (cause it wasn't received)
+        case RESEND:                // tells the master to resend the last information sent (cause it wasn't received)
             ret = new qResendMessage();
             break;
-        case 5:         // server tells player that he/she has to be the host of the match 
+        case SEND_HOST:             // server tells player that he/she has to be the host of the match 
             ret = new qSendHostingOrder();
             break;
-        case 6:         // server tells player to which address he has to connect play a match
+        case SEND_CONNECT:          // server tells player to which address he has to connect play a match
             ret = new qSendConnectInfo();
+            break;
+        case SEND_PEERS:            // server send player his peers info so that he can measure the ping to them
+            ret = new qSendPeersInfo();
             break;
         default:        // the type read doesn't match with any of the possible messages
             ret = new qMessage();
@@ -150,6 +186,8 @@ qPlayer::qPlayer() {}
 qPlayer::qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl) {}
 
 qPlayer::~qPlayer() {}
+
+void qPlayer::processMessages() {}
 
 
 // qServer methods
@@ -222,7 +260,7 @@ qServer::qServer() {
 	FD_SET(this->listener, &this->master);      // adds the listener to the master set of descriptors
     this->fdmax = this->listener;         		// keep track of the maximum file descriptor
 
-    cout << "server started\n";
+    cout << "Server started\n";
 }
 
 
@@ -302,6 +340,7 @@ void qServerInstance::getData() {
                     FD_CLR(i, master);     // remove it from master set
                 }  else {
                     // we got some data from a client -> handle it
+                    cout << "server: data ready for socket " << i << "\n";
                     handleData(buf, nbytes, i);
                 }
             }       // end handle data from client
@@ -326,6 +365,31 @@ void qServerInstance::handleData(const uchar *buf, int numBytes, int sock) {
         message->addMessagePart(buf, numBytes);
         // add the message to the map
         addMessage(messElem(sock, message), getReceivedQueue());
+    }
+}
+
+void qServerInstance::processMessages() {
+    MQ::iterator it = getReceivedQueue().begin();
+    while (it != getReceivedQueue().end()) {
+        if ((it->second)->isMessageReadable()) {
+            (it->second)->handleMessage(it, this);
+            switch(it->second->getType()) {
+                case PLAYER_INFO:
+                    // add info to the player queue
+                    break;
+                case MATCH_READY:
+                    // send connect info to the players in the match
+                    // with the socket (it->first), get the player and its playerMatchId
+                    // search the rest of the players with that playerMatchId
+                    // send them connectInfo message
+                    break;
+                default:
+                    // do nothing -> the handleMessage takes care of everything needed
+                    break;
+            }
+            deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
+        }
+        ++it;
     }
 }
 
@@ -373,20 +437,46 @@ int qMessage::send(int sock) {
 }
 
 ushort qMessage::readShort(const uchar *buf, int &bytesRead) {
-    if (MAX_BUF_SIZE - bytesRead > (int) sizeof(short)) {
-        ushort si;
-        si = buf[bytesRead];
-        si += buf[bytesRead + 1] << qCHAR_BITS;
+    if (MAX_BUF_SIZE - bytesRead >= (int) sizeof(short)) {
+        ushort val;
+        val = buf[bytesRead];
+        val += buf[bytesRead + 1] << qCHAR_BITS;
         bytesRead += qSHORT_BYTES;
-        return ntohs(si);                    // use ntohs to parse the data from the socket
+        return val;
     }
     return 0;              // the short could not be read
 }
 
-void qMessage::handleMessage(int sock, qMessageStorage *ms) {
+void qMessage::writeShort(ushort val, int &position) {
+    if (MAX_BUF_SIZE - position >= (int) sizeof(short)) {
+        uchar low, high;
+        low = val & 0xFF;
+        high = val & 0xFF00;
+        buffer[position] = low;
+        buffer[position + 1] = high;
+        position += qSHORT_BYTES;
+    }
+}
+
+void qMessage::prepareToSend() {
+    // add the type and the length to the buffer
+    int position = 0;
+    buffer[position++] = type;
+    writeShort(messLen, position);
+}
+
+void qMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
     // send to the player a message asking to resend as there was some error when reading the message
     qMessage *message = new qResendMessage();
-    ms->addMessage(messElem(sock, message), ms->getSendingQueue());
+    message->prepareToSend();
+    ms->addMessage(messElem(it->first, message), ms->getSendingQueue());
+}
+
+void qMessage::acknowledgeMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    qMessage *message = new qAckMessage();
+    message->prepareToSend();
+    ms->addMessage(messElem(it->first, message), ms->getSendingQueue());
+    cout << "message - read and aknowledged\n";
 }
 
 
@@ -394,57 +484,98 @@ void qMessage::handleMessage(int sock, qMessageStorage *ms) {
 
 qAckMessage::qAckMessage() : qMessage(1) {}
 
-void qAckMessage::handleMessage(int sock, qMessageStorage *ms) {
-    ms->deleteMessage(sock, ms->getPendingAckQueue());
+void qAckMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    ms->deleteMessage(it->first, ms->getPendingAckQueue());
 }
 
 
 qPlayerInfoMessage::qPlayerInfoMessage() : qMessage(2) {}
 
-void qPlayerInfoMessage::handleMessage(int sock, qMessageStorage *ms) {
-    
+void qPlayerInfoMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    // readInformation
+    int bytesRead = 3;
+    // 3 uchar, 1 ushort
+    uchar cores, cpuInt, cpuFrac;
+    ushort ping;
+    cores = buffer[bytesRead++];
+    cpuInt = buffer[bytesRead++];
+    cpuFrac = buffer[bytesRead++];
+    writeShort(ping, bytesRead);
+    this->setProperties(cores, cpuInt, cpuFrac, ping);
+
+    acknowledgeMessage(it, ms);
 }
 
 
 qMatchReadyMessage::qMatchReadyMessage() : qMessage(3) {}
 
-void qMatchReadyMessage::handleMessage(int sock, qMessageStorage *ms) {
-    
+void qMatchReadyMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    // do nothing -> the server will then send the connection information to all the other players in the match
+    acknowledgeMessage(it, ms);
 }
 
 
 qResendMessage::qResendMessage() : qMessage(4) {}
 
-void qResendMessage::handleMessage(int sock, qMessageStorage *ms) {
-    
+void qResendMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    // get the message waiting for ack and move it again to the sending queue
+    ms->moveMessage(ms->getMessageFromQueue(it->first, ms->getPendingAckQueue()), 
+        ms->getPendingAckQueue(), ms->getSendingQueue());
 }
 
 
 qSendHostingOrder::qSendHostingOrder() : qMessage(5) {}
 
-void qSendHostingOrder::handleMessage(int sock, qMessageStorage *ms) {
-    
+void qSendHostingOrder::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    // do nothing -> the player will start the game on the default port in its processMessages() method
+    acknowledgeMessage(it, ms);
 }
 
 
 qSendConnectInfo::qSendConnectInfo() : qMessage(6) {}
 
-void qSendConnectInfo::handleMessage(int sock, qMessageStorage *ms) {
-    
+void qSendConnectInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    // readInformation
+
+    // do nothing -> the player method processMessages() will take care of connecting to the game specified
+    acknowledgeMessage(it, ms);
 }
 
 
+// NOT YET IMPLEMENTED! --> the ping will be the last thing to add
+
 qSendPeersInfo::qSendPeersInfo() : qMessage(7) {}
 
-void qSendPeersInfo::handleMessage(int sock, qMessageStorage *ms) {
-    
+void qSendPeersInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
+    // readInformation
+
+    // do nothing -> the player method processMessges() will take care of measuring the ping to the other peers
+    // and send back the server a message of qPlayerInfoMessage with the new information added
 }
 
 
 // PlayerInfo methods
 
-PlayerInfo::PlayerInfo() {
+PlayerInfo::PlayerInfo() {}
 
+void PlayerInfo::setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p) {
+    numCores = nCores;
+    cpuSpeedInteger = cpuSI;
+    cpuSpeedFractional = cpuSF;
+    ping = p;
+}
+
+
+// Timer
+
+Timer::Timer(int after, TimerCallbacks tc) {           // add arguments after tc, if needed
+    std::this_thread::sleep_for(std::chrono::milliseconds(after));
+    switch (tc) {
+        case RESEND_TIMEOUT:
+            task();
+        default:
+            defaultTask();
+    }
 }
 
 
