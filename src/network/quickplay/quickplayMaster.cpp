@@ -73,6 +73,7 @@ If some of the languages strings are added, then re-run ./bootstrap.sh !!
 int main(int argc, char **argv) {
     // the players should have some type of timeout to resend automatically messages if they have
     // not been acked by the server
+    int matchsCreated;
     qServerInstance quickServer;
     while (1) {
         // handle connections
@@ -80,8 +81,9 @@ int main(int argc, char **argv) {
         quickServer.processMessages();
         quickServer.sendMessages();
         // put players together for a game
-        if (quickServer.enoughPlayersReady()) {
-            quickServer.prepareMatch();
+        matchsCreated = quickServer.prepareMatch();
+        if (matchsCreated > 0) {
+            std::cout << "server -> created " << matchsCreated << " new match/es\n";
         }
     }
 }

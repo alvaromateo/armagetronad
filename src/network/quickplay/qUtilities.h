@@ -65,9 +65,11 @@ This file will contain all the different classes needed.
 #define SERVER_IP		"79.153.71.108"
 #define BACKLOG     	20      				// How many pending connections queue will hold
 #define QPLAYERS    	2       				// number of players for each game
-#define MAX_BUF_SIZE 	1024
+#define MAX_BUF_SIZE 	128
+#define MAX_NET_ADDR	64
 #define qCHAR_BITS 		8
 #define qSHORT_BYTES	2
+#define HEADER_LEN		3
 
 
 typedef unsigned char uchar;
@@ -81,7 +83,8 @@ class qPlayer;
 
 typedef std::map<int, qPlayer*> PQ;
 typedef std::map<int, qMessage*> MQ;
-typedef std::pair<int, qMessage*> messElem; 	// messElem -> messageElement
+typedef std::pair<int, qMessage*> messElem; 		// messElem -> messageElement
+typedef std::multimap<uint, qPlayer*> MatchQ; 		// uint -> matchId
 
 
 enum MessageTypes { 
@@ -153,6 +156,7 @@ class PlayerInfo {
 		PlayerInfo();
 		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional);
 
+		bool isInitialized() { return numCores > 0; }
 		void setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p);
 };
 
@@ -170,22 +174,32 @@ class qConnection {
 		qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl);		// initializes connection to given remoteaddress
 		virtual ~qConnection() {}
 
-		void readData(char *buf); 														// fills the buffer with data from the socket of the connection
-		void sendData(const char *buf);													// sends to the remote connection the data in the buffer
+		inline int getSock() { return sock; }
+		inline const sockaddr_storage &getSockaddrStorage() { return remoteaddr; }
 };
 
 class qPlayer : public qConnection, public qMessageStorage {
 	private:
-		PlayerInfo cpu; 				// the priority assigned to that PC to act as the server of the game based on its computer
-		ushort playerMatchId; 			// the matchId of the player -> information set and used by the server only to handle pairing of players
+		PlayerInfo info; 			// the priority assigned to that PC to act as the server of the game based on its computer
+		uint matchId; 				// the matchId of the player -> information set and used by the server only to handle pairing of players
+		bool master;				// if the player has to act as master -> information set and used by the server only
 
 	public:
 		qPlayer(); 			// set current player
 		qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl);
 		~qPlayer();
 
+		inline uint getMatchId() { return matchId; }
+		inline bool isMaster() { return master; }
+		inline bool isPlayerAvailable() { return (matchId == 0) && info.isInitialized(); }
+
+		void setMatchId(uint id) { matchId = id; }
+		void setMaster(bool m) { master = m; }
+		void setInfo(qPlayerInfoMessage *message);
+
 		void processMessages();
-		bool isMatchReady();
+		bool hasBetterPC(qPlayer *other);
+
 };
 
 /*
@@ -221,9 +235,14 @@ class qServer {
  */
 class qServerInstance : public qServer, public qMessageStorage {
 	private:
+		static uint matchesIds;
+
 		PQ playerQueue;			// Queue for holding the players that have to be paired
+		MatchQ matchesQueue; 	// Queue for holding the matches before they start
 
 		void handleData(const uchar *buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
+		void fillClientPlayers(std::vector<qPlayer *> &cPlayers, uint matchId);
+		void sendConnectMessages(const std::vector<qPlayer *> &cPlayers);
 
 	public:
 		qServerInstance();
@@ -232,13 +251,14 @@ class qServerInstance : public qServer, public qMessageStorage {
 		void getData();
 
 		inline const PQ &getPlayerQueue() { return playerQueue; }
+		inline uint getNextMatchId() { return matchesIds++; }
 		inline void addPlayer(qPlayer *&newPlayer, int sock) { 
 			playerQueue.insert(std::pair<int, qPlayer*>(sock, newPlayer));
 		}
+		qPlayer *getPlayer(int sock);
 
 		void processMessages();
-		bool enoughPlayersReady() { return false; }			// TODO: end this function
-		void prepareMatch() {}
+		int prepareMatch();					// pairs the players and puts them in the matchesQueue - returns the number of matches created
 };
 
 /*
@@ -270,7 +290,7 @@ class qMessage {
 		// addMessagePart is in charge to build the message when it has been divided in different parts by the network
 		// it just adds new information received to the buffer until it has the specified message length
 		void addMessagePart(const uchar *buf, int numShorts);			
-		bool isMessageReadable() { return (messLen <= currentLen - 3) || !type; } 			// 3 are the header bytes
+		bool isMessageReadable() { return (messLen <= currentLen - HEADER_LEN) || !type; } 		// 3 are the header bytes
 
 		virtual void handleMessage(const MQ::iterator &it, qMessageStorage *ms); 			// to read the message and create the corresponding derived class
 		virtual int send(int sock); 														// send the message
@@ -303,6 +323,7 @@ class qPlayerInfoMessage : public qMessage {
 	public:
 		qPlayerInfoMessage();
 		~qPlayerInfoMessage() {}
+		PlayerInfo getInfo() { return info; }
 		void handleMessage(const MQ::iterator &it, qMessageStorage *ms);
 };
 
@@ -342,12 +363,16 @@ class qSendHostingOrder: public qMessage {
  */
 class qSendConnectInfo: public qMessage {
 	private:
-
+		uchar family;
+		uchar address[MAX_NET_ADDR]; 		// 16 bytes is for ipV6 addresses, which is the maximum
+		// The port is not necessary -> always the default one
 
 	public:
 		qSendConnectInfo();
 		~qSendConnectInfo() {}
 		void handleMessage(const MQ::iterator &it, qMessageStorage *ms);
+		void setProperties(uchar f, uchar *addr);
+		void prepareToSend();
 };
 
 /*
