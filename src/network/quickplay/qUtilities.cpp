@@ -254,15 +254,15 @@ qServer::qServer() {
         // print IP address
         char str[MAX_NET_ADDR];
         if (p->ai_family == AF_INET) {
-            struct sockaddr_in* pV4Addr = (struct sockaddr_in *) p->ai_addr;
+            struct sockaddr_in *pV4Addr = reinterpret_cast<sockaddr_in *> (p->ai_addr);
             struct in_addr ipAddr = pV4Addr->sin_addr;
             inet_ntop(AF_INET, &ipAddr, str, MAX_NET_ADDR);
         } else {
-            struct sockaddr_in6 pV6Addr = (struct sockaddr_in6 *) p->ai_addr;
+            struct sockaddr_in6 *pV6Addr = reinterpret_cast<sockaddr_in6 *> (p->ai_addr);
             struct in6_addr ipAddr = pV6Addr->sin6_addr;
             inet_ntop(AF_INET6, &ipAddr, str, MAX_NET_ADDR);
         }
-        printf("server IP address: %s", ipAddr);
+        printf("server IP address: %s", str);
 
         break; // if this instruction is reached it means all three system calls were successful and we can proceed
     }
@@ -415,28 +415,26 @@ void qServerInstance::processMessages() {
         if ((it->second)->isMessageReadable()) {
             (it->second)->handleMessage(it, this);
             // for some cases of messages received the server has to do extra work
+            vector<qPlayer *> clientPlayers;
+            qPlayer *player;
             switch(it->second->getType()) {
                 case PLAYER_INFO:
                     // get player and add info to it
-                    qPlayer *player = playerQueue.find(it->first);
+                    player = playerQueue.find(it->first)->second;
                     player->setInfo(dynamic_cast<qPlayerInfoMessage *>(it->second));
                     break;
                 case MATCH_READY:
                     // send connect info to the players in the match
                     // with the socket (it->first), get the player and its playerMatchId
-                    vector<qPlayer *> clientPlayers;
-                    qPlayer *hostPlayer = getPlayer(it->first);
-                    if (hostPlayer) {
+                    player = getPlayer(it->first);
+                    if (player) {
                         // search the rest of the players with that playerMatchId
-                        fillClientPlayers(clientPlayers, hostPlayer->getMatchId());
+                        fillClientPlayers(clientPlayers, player->getMatchId());
                         // send them connectInfo message
                         sendConnectMessages(clientPlayers);
                     }
                     // delete the master from the players with that matchId
-                    deletePlayerFromMatches(it->first, hostPlayer->getMatchId());
-                    break;
-                default:
-                    // do nothing -> the handleMessage takes care of everything needed
+                    deletePlayerFromMatches(it->first, player->getMatchId());
                     break;
             }
             deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
@@ -463,12 +461,12 @@ void qServerInstance::fillClientPlayers(vector<qPlayer *> &cPlayers, uint matchI
 }
 
 void qServerInstance::sendConnectMessages(const vector<qPlayer *> &cPlayers) {
-    for (vector<qPlayer *>::iterator it = cPlayers.begin(); it != cPlayers.end(); ++it) {
+    for (vector<qPlayer *>::const_iterator it = cPlayers.cbegin(); it != cPlayers.cend(); ++it) {
         cout << "server -> storing connection information for client\n";
 
         // fill message with information
         uchar nFamily;
-        uchar nAddress[MAX_NET_ADDR];
+        char nAddress[MAX_NET_ADDR];
         struct sockaddr_storage connection = (*it)->getSockaddrStorage();
         if (connection.ss_family == AF_INET) {
             // ipV4
@@ -504,7 +502,7 @@ int qServerInstance::prepareMatch() {
 
     // pair the players in the order they were put in the vector 
     // there is no sophisticated matchmaking system based on player skill or something similar
-    for (int i = 0; (i + QPLAYERS) <= playersAvailable.size(); i += QPLAYERS) {
+    for (int i = 0; (unsigned long) (i + QPLAYERS) <= playersAvailable.size(); i += QPLAYERS) {
         uint id = getNextMatchId();
         qPlayer *master = playersAvailable[i];
         for (int j = 0; j < QPLAYERS; ++j) {
@@ -515,7 +513,7 @@ int qServerInstance::prepareMatch() {
             }
         }
         master->setMaster(true);
-        
+
         // send message to master to order the creation of the game
         qSendHostingOrder *message = new qSendHostingOrder();
         message->prepareToSend();
@@ -675,14 +673,14 @@ void qSendConnectInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms
     uchar *buf = getBuffer();
     family = buf[bytesRead++];
     for (int i = 0; i < MAX_NET_ADDR; ++i) {
-        address[i] = buf[bytesRead + i];
+        address[i] = (char) buf[bytesRead + i];
     }
 
     // do nothing -> the player method processMessages() will take care of connecting to the game specified
     acknowledgeMessage(it, ms);
 }
 
-void qSendConnectInfo::setProperties(uchar f, uchar *addr) {
+void qSendConnectInfo::setProperties(uchar f, char *addr) {
     family = f;
     for (int i = 0; i < MAX_NET_ADDR; ++i) {
         address[i] = addr[i];
@@ -693,12 +691,13 @@ void qSendConnectInfo::prepareToSend() {
     // write to the buffer
     int position = 0;
     uchar *buf = getBuffer();
-    buf[position++] = type;
-    messLen = currentLen = HEADER_LEN + MAX_NET_ADDR + 1;
-    writeShort(currentLen, position);
+    buf[position++] = getType();
+    setMessageLength(HEADER_LEN + MAX_NET_ADDR + 1);
+    setCurrentLength(HEADER_LEN + MAX_NET_ADDR + 1);
+    writeShort(getCurrentLength(), position);
     buf[position++] = family;
     for (int i = 0; i < MAX_NET_ADDR; ++i) {
-        buf[position + i] = address[i];
+        buf[position + i] = (uchar) address[i];
     }
 }
 

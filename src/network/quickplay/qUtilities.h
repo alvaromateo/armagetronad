@@ -78,6 +78,7 @@ typedef unsigned int uint;
 
 
 class qMessage;
+class qPlayerInfoMessage;
 class qPlayer;
 
 
@@ -248,8 +249,6 @@ class qServerInstance : public qServer, public qMessageStorage {
 		qServerInstance();
 		~qServerInstance();
 
-		void getData();
-
 		inline const PQ &getPlayerQueue() { return playerQueue; }
 		inline uint getNextMatchId() { return matchesIds++; }
 		inline void addPlayer(qPlayer *&newPlayer, int sock) { 
@@ -257,6 +256,9 @@ class qServerInstance : public qServer, public qMessageStorage {
 		}
 		qPlayer *getPlayer(int sock);
 
+		void deletePlayerFromMatches(int sock, uint id);
+		void addPlayerToMatches(qPlayer *player, uint id);
+		void getData();
 		void processMessages();
 		int prepareMatch();					// pairs the players and puts them in the matchesQueue - returns the number of matches created
 };
@@ -273,9 +275,6 @@ class qMessage {
 		// Properties of the message stored in the derived classes once the message is handled or when it is created to be sent
 		uchar type;
 
-		ushort readShort(const uchar *buf, int &bytesRead);			// bytesRead is a reference to a number of bytes read control variable
-		void writeShort(ushort val, int position);
-
 	public:
 		qMessage();								// default empty message
 		explicit qMessage(uchar type); 			// constructor called by derived classes default constructors
@@ -287,10 +286,18 @@ class qMessage {
 		inline ushort getCurrentLength() { return currentLen; }
 		inline uchar getType() { return type; }
 
+		// Setters
+		inline void setMessageLength(ushort mLen) { messLen = mLen; }
+		inline void setCurrentLength(ushort cLen) { currentLen = cLen; }
+
+		ushort readShort(const uchar *buf, int &bytesRead);			// bytesRead is a reference to a number of bytes read control variable
+		void writeShort(ushort val, int &position);
+
 		// addMessagePart is in charge to build the message when it has been divided in different parts by the network
 		// it just adds new information received to the buffer until it has the specified message length
 		void addMessagePart(const uchar *buf, int numShorts);			
 		bool isMessageReadable() { return (messLen <= currentLen - HEADER_LEN) || !type; } 		// 3 are the header bytes
+		void acknowledgeMessage(const MQ::iterator &it, qMessageStorage *ms);
 
 		virtual void handleMessage(const MQ::iterator &it, qMessageStorage *ms); 			// to read the message and create the corresponding derived class
 		virtual int send(int sock); 														// send the message
@@ -364,14 +371,14 @@ class qSendHostingOrder: public qMessage {
 class qSendConnectInfo: public qMessage {
 	private:
 		uchar family;
-		uchar address[MAX_NET_ADDR]; 		// 16 bytes is for ipV6 addresses, which is the maximum
+		char address[MAX_NET_ADDR]; 		// 16 bytes is for ipV6 addresses, which is the maximum
 		// The port is not necessary -> always the default one
 
 	public:
 		qSendConnectInfo();
 		~qSendConnectInfo() {}
 		void handleMessage(const MQ::iterator &it, qMessageStorage *ms);
-		void setProperties(uchar f, uchar *addr);
+		void setProperties(uchar f, char *addr);
 		void prepareToSend();
 };
 
