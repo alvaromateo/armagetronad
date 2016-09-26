@@ -41,6 +41,9 @@ public:
     static void BrowseServers();        // browse the servers currently in the list
     static void ConfigurationMenu();    // browser configuration menu
 
+    // quick play
+    static void BrowseQuickPlay();
+
     static nServerInfoBase * CurrentMaster(); // the currently active master server
 
     static int lowPort, highPort;

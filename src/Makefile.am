@@ -45,6 +45,8 @@ else
 tools_extra=
 endif
 
+# TFG library
+libtfg_a_SOURCES= network/quickplay/qUtilities.cpp network/quickplay/qUtilities.h
 
 # Note: tMemManager.cpp must be last to avoid false leak reports (sorry for
 # the fragile dependency on undefined behaviour of the linker...)
@@ -123,6 +125,7 @@ librender_a_CXXFLAGS =$(libtools_a_CXXFLAGS)  -I@srcdir@/render
 libui_a_CXXFLAGS     =$(librender_a_CXXFLAGS) -I@srcdir@/ui
 libengine_a_CXXFLAGS =$(libui_a_CXXFLAGS)     -I@srcdir@/network -I@srcdir@/engine 
 libtron_a_CXXFLAGS   =$(libengine_a_CXXFLAGS) -I@srcdir@/thirdparty/particles -I@srcdir@/tron 
+libtfg_a_CXXFLAGS 	 =$(libtools_a_CXXFLAGS)  -I@srcdir@/network/quickplay
 
 # core engine files can get compiled with optimization turned on for more painless debugging
 # on weak computers
@@ -134,8 +137,10 @@ endif
 
 if BUILDMASTER
 buildthemaster = armagetronad_main_master$(EXEEXT)
+buildquickplay = armagetronad_main_quickplay$(EXEEXT)
 else
 buildthemaster =
+buildquickplay =
 endif
 
 if BUILDMAIN
@@ -144,7 +149,7 @@ else
 buildmain =
 endif
 
-games_PROGRAMS = $(buildmain) $(buildthemaster)
+games_PROGRAMS = $(buildmain) $(buildthemaster) $(buildquickplay)
 #EXTRA_PROGRAMS = armagetronad_main_master
 
 
@@ -155,20 +160,27 @@ armagetronad_main$(EXEEXT): Makefile
 
 armagetronad_main_master$(EXEEXT): Makefile
 	${BUILDFAKE}
+
+armagetronad_main_quickplay$(EXEEXT): Makefile
+	${BUILDFAKE}
 else
 if BUILDMAIN
-noinst_LIBRARIES = libenginecore.a libengine.a librender.a  libtron.a libui.a libnetwork.a libtools.a
+noinst_LIBRARIES = libenginecore.a libengine.a librender.a  libtron.a libui.a libnetwork.a libtools.a libtfg.a
 else
-noinst_LIBRARIES = libnetwork.a libtools.a
+noinst_LIBRARIES = libnetwork.a libtools.a libtfg.a
 endif
 
 armagetronad_main_SOURCES = tron/gFloor.cpp
 armagetronad_main_CXXFLAGS =$(libtron_a_CXXFLAGS)
-armagetronad_main_LDADD=libtron.a libenginecore.a libengine.a libnetwork.a libui.a librender.a libtools.a
+armagetronad_main_LDADD=libtron.a libenginecore.a libengine.a libnetwork.a libui.a librender.a libtools.a libtfg.a
 
 armagetronad_main_master_SOURCES = network/master.cpp
 armagetronad_main_master_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_master_LDADD=libnetwork.a libtools.a
+
+armagetronad_main_quickplay_SOURCES = network/quickplay/quickplayMaster.cpp
+armagetronad_main_quickplay_CXXFLAGS =$(libtfg_a_CXXFLAGS)
+armagetronad_main_quickplay_LDADD = libtfg.a
 endif
 
 ## Note: tron/gFloor.cpp is not referenced from the outside, but required anyway. So it can't be put into

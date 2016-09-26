@@ -2415,6 +2415,11 @@ void net_game(){
     (&net_menu,"$network_menu_internet_text",
      "$network_menu_internet_help",&gServerBrowser::BrowseMaster);
 
+    // Quick match option
+    uMenuItemFunction quick_match
+    (&net_menu,"$quick_match_text",
+      "$quick_match_help",&gServerBrowser::BrowseQuickPlay);
+
     gNetIdler idler;
     // rSysDep::StartNetSyncThread( &idler );
     net_menu.Enter();

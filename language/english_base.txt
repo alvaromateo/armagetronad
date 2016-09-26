@@ -2898,8 +2898,21 @@ md5_suffix_help               Extra hash suffix for local accounts used to scram
 
 global_id_help                If set to 1, Global IDs (Armathentication) will be enabled on this server.
 
+#*************************************
+#*************************************
+#
+#       Quick match
+#
+#*************************************
+#*************************************
+
+# Quick match is for randomly enter in a game against 3 other opponents.
+# All the server settings are set by default.
+
+quick_match_text			Quick match
+quick_match_help			Play online with other players and default settings
+
 # items that should not be translated
 include english_base_notranslate.txt
 
 # Room for lost settings in translation files:
-

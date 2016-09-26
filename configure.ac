@@ -29,7 +29,7 @@ dnl AC_CANONICAL_BUILD
 dnl AC_CANONICAL_HOST
 
 AC_PROG_RANLIB
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([subdir-objects])
 
 dnl detect which link commant to use
 AC_PROG_LN_S
@@ -90,7 +90,7 @@ dnl enable_glout=yes)
 
 AC_ARG_ENABLE(master,
      AC_HELP_STRING([--enable-master],
-		[Build the master server]),
+		[Build the master and quickplay servers]),
      [case "${enableval}" in
        yes) armamaster=true ;;
        no)  armamaster=false ;;
@@ -977,6 +977,7 @@ echo "Options selected are:"
 echo "     Build Regular Game Client: $build_regular"
 echo "     Build Dedicated Server: $build_dedicated"
 echo "     Build Master Server: $armamaster"
+echo "     Build Quickplay Server: $armamaster"
 echo ""
 echo "Installation options:"
 echo "     Prefix: $prefix"

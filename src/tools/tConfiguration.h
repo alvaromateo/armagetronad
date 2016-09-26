@@ -85,7 +85,7 @@ private:
     int _intCache;
     double _doubleCache;
     bool _boolCache;
-}
+};
 
 // This class is the workhorse configuration class.  Use it and only it
 class tConfiguration {
@@ -145,7 +145,7 @@ private:
     //  putting the appropriate line, then just use it in the game
     //  It registers global defaults, but not object-specific defaults
     void _registerDefaults();
-}
+};
 
 #endif
 /*
