@@ -49,6 +49,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tDirectories.h"
 #include "tConfiguration.h"
 
+// quickplay include
+#include "../network/quickplay/qUtilities.h"
+
+
+
 int gServerBrowser::lowPort  = 4534;
 
 int gServerBrowser::highPort = 4540;
@@ -195,10 +200,13 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 void gServerBrowser::BrowseQuickPlay ()
 {
     // Our own socket server ready to handle all the queries of the players
-    
+    qPlayer myself();
+
     // Server name and port hardcoded to my own server and port
+    /*
     nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 4533);
     ConnectToServer( &quick_play_server );
+    */
     // nServerInfo::StartQueryAll( nServerInfo::QUERY_QUICKPLAY );
 
 #ifdef DEBUG
