@@ -81,9 +81,9 @@ int main(int argc, char **argv) {
         quickServer.processMessages();
         quickServer.sendMessages();
         // put players together for a game
-        matchsCreated = quickServer.prepareMatch();
-        if (matchsCreated > 0) {
-            std::cout << "server -> created " << matchsCreated << " new match/es\n";
+        matchesCreated = quickServer.prepareMatch();
+        if (matchesCreated > 0) {
+            std::cout << "server -> created " << matchesCreated << " new match/es\n";
         }
     }
 }

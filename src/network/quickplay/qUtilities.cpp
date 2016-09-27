@@ -171,6 +171,39 @@ qMessage *qMessageStorage::createMessage(uchar type) {
 }
 
 
+// PlayerInfo methods
+
+PlayerInfo::PlayerInfo() : numCores(0), cpuSpeedInteger(0), cpuSpeedFractional(0), ping(0) {}
+
+PlayerInfo::PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional, ushort ping) 
+    : numCores(numCores), cpuSpeedInteger(cpuSpeedInteger), cpuSpeedFractional(cpuSpeedFractional), ping(ping) {}
+
+void PlayerInfo::setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p) {
+    numCores = nCores;
+    cpuSpeedInteger = cpuSI;
+    cpuSpeedFractional = cpuSF;
+    ping = p;
+}
+
+int PlayerInfo::setCpuInfo() {
+    uchar *nCores, *cpuSI, *cpuSF;
+    ushort *p;
+    int res = getCpuInfo(nCores, cpuSI, cpuSF, p);
+    if (res >= 0) {
+        setProperties(*nCores, *cpuSI, *cpuSF, *p);
+    }
+    return res;
+}
+
+int PlayerInfo::getCpuInfo(uchar *nCores, uchar *cpuSI, uchar *cpuSF, ushort *p) {
+    // TODO: implement correctly this method so that it reads from the cpu information of the system
+    *nCores = 1;
+    *cpuSI = 0;
+    *cpuSF = 0;
+    *p = 0;
+}
+
+
 // qConnection methods
 
 qConnection::qConnection() {
@@ -716,14 +749,8 @@ void qSendPeersInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) 
 
 // PlayerInfo methods
 
-PlayerInfo::PlayerInfo() {}
 
-void PlayerInfo::setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p) {
-    numCores = nCores;
-    cpuSpeedInteger = cpuSI;
-    cpuSpeedFractional = cpuSF;
-    ping = p;
-}
+
 
 
 // Timer

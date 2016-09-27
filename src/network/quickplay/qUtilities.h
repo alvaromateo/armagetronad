@@ -153,12 +153,15 @@ class PlayerInfo {
 
 		ushort ping; 	// averaged from the player to the rest of the players
 
+		int getCpuInfo(uchar *nCores, uchar *cpuSI, uchar *cpuSF, ushort *p); 			// sets the values according to /proc/cpuinfo in the given pointers -> returns -1 on error
+
 	public:
 		PlayerInfo();
 		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional);
 
 		bool isInitialized() { return numCores > 0; }
 		void setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p);
+		int setCpuInfo();
 };
 
 
