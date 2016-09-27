@@ -218,7 +218,7 @@ qServer::qServer() {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    retval = getaddrinfo(NULL, PORT, &hints, &servinfo);
+    retval = getaddrinfo(NULL, qPORT, &hints, &servinfo);
     if (retval != 0) {
         cerr << "server getaddrinfo: " << gai_strerror(retval) << endl;
         exit(1);
@@ -252,15 +252,15 @@ qServer::qServer() {
         }
 
         // print IP address
-        char str[MAX_NET_ADDR];
+        char str[qMAX_NET_ADDR];
         if (p->ai_family == AF_INET) {
             struct sockaddr_in *pV4Addr = reinterpret_cast<sockaddr_in *> (p->ai_addr);
             struct in_addr ipAddr = pV4Addr->sin_addr;
-            inet_ntop(AF_INET, &ipAddr, str, MAX_NET_ADDR);
+            inet_ntop(AF_INET, &ipAddr, str, qMAX_NET_ADDR);
         } else {
             struct sockaddr_in6 *pV6Addr = reinterpret_cast<sockaddr_in6 *> (p->ai_addr);
             struct in6_addr ipAddr = pV6Addr->sin6_addr;
-            inet_ntop(AF_INET6, &ipAddr, str, MAX_NET_ADDR);
+            inet_ntop(AF_INET6, &ipAddr, str, qMAX_NET_ADDR);
         }
         printf("server IP address: %s", str);
 
@@ -274,7 +274,7 @@ qServer::qServer() {
         exit(4);
     }
 
-    retval = listen(this->listener, BACKLOG);
+    retval = listen(this->listener, qBACKLOG);
     if (retval == -1) {
         perror("server -> listen failed\n");
         exit(5);
@@ -308,7 +308,7 @@ void qServerInstance::getData() {
     int newfd;              // newfd -> new socket to send information
     int i, retval;
     int nbytes;
-    uchar buf[MAX_BUF_SIZE];        // values to store the data and the number of bytes received
+    uchar buf[qMAX_BUF_SIZE];        // values to store the data and the number of bytes received
     
     // values from parent class
     int *fdmax = getFDmax();
@@ -466,18 +466,18 @@ void qServerInstance::sendConnectMessages(const vector<qPlayer *> &cPlayers) {
 
         // fill message with information
         uchar nFamily;
-        char nAddress[MAX_NET_ADDR];
+        char nAddress[qMAX_NET_ADDR];
         struct sockaddr_storage connection = (*it)->getSockaddrStorage();
         if (connection.ss_family == AF_INET) {
             // ipV4
             nFamily = 0;
             struct sockaddr_in *dest = (struct sockaddr_in *) &connection;
-            inet_ntop(AF_INET, &(dest->sin_addr), nAddress, MAX_NET_ADDR);
+            inet_ntop(AF_INET, &(dest->sin_addr), nAddress, qMAX_NET_ADDR);
         } else {
             // ipV6
             nFamily = 1;
             struct sockaddr_in6 *dest = (struct sockaddr_in6 *) &connection;
-            inet_ntop(AF_INET6, &(dest->sin6_addr), nAddress, MAX_NET_ADDR);
+            inet_ntop(AF_INET6, &(dest->sin6_addr), nAddress, qMAX_NET_ADDR);
         }
 
         // send message to player
@@ -502,10 +502,10 @@ int qServerInstance::prepareMatch() {
 
     // pair the players in the order they were put in the vector 
     // there is no sophisticated matchmaking system based on player skill or something similar
-    for (int i = 0; (unsigned long) (i + QPLAYERS) <= playersAvailable.size(); i += QPLAYERS) {
+    for (int i = 0; (unsigned long) (i + qPLAYERS) <= playersAvailable.size(); i += qPLAYERS) {
         uint id = getNextMatchId();
         qPlayer *master = playersAvailable[i];
-        for (int j = 0; j < QPLAYERS; ++j) {
+        for (int j = 0; j < qPLAYERS; ++j) {
             playersAvailable[i + j]->setMatchId(id);
             addPlayerToMatches(playersAvailable[i + j], id);
             if ((playersAvailable[i + j])->hasBetterPC(master)) {
@@ -528,12 +528,12 @@ int qServerInstance::prepareMatch() {
 // qMessage methods
 
 qMessage::qMessage() : buffer(NULL), messLen(0), currentLen(0), type(0) {
-    buffer = new uchar[MAX_BUF_SIZE]();
+    buffer = new uchar[qMAX_BUF_SIZE]();
 }
 
 qMessage::qMessage(uchar type) : 
     buffer(NULL), messLen(0), currentLen(0), type(type) {
-        buffer = new uchar[MAX_BUF_SIZE]();
+        buffer = new uchar[qMAX_BUF_SIZE]();
 }
 
 qMessage::~qMessage() {
@@ -546,7 +546,7 @@ void qMessage::addMessagePart(const uchar *buf, int numBytes) {
     if (messLen == 0 && (currentLen + numBytes) >= qSHORT_BYTES + 1) {
         messLen = readShort(buf, bytesRead);        // the first byte is the type
     }
-    numBytes = numBytes > MAX_BUF_SIZE ? MAX_BUF_SIZE : numBytes;
+    numBytes = numBytes > qMAX_BUF_SIZE ? qMAX_BUF_SIZE : numBytes;
     std::copy(buf, buf + numBytes, buffer + currentLen);
     currentLen += numBytes;
 }
@@ -568,7 +568,7 @@ int qMessage::send(int sock) {
 }
 
 ushort qMessage::readShort(const uchar *buf, int &bytesRead) {
-    if (MAX_BUF_SIZE - bytesRead >= (int) sizeof(short)) {
+    if (qMAX_BUF_SIZE - bytesRead >= (int) sizeof(short)) {
         ushort val;
         val = buf[bytesRead];
         val += buf[bytesRead + 1] << qCHAR_BITS;
@@ -579,7 +579,7 @@ ushort qMessage::readShort(const uchar *buf, int &bytesRead) {
 }
 
 void qMessage::writeShort(ushort val, int &position) {
-    if (MAX_BUF_SIZE - position >= (int) sizeof(short)) {
+    if (qMAX_BUF_SIZE - position >= (int) sizeof(short)) {
         uchar low, high;
         low = val & 0xFF;
         high = val & 0xFF00;
@@ -593,7 +593,7 @@ void qMessage::prepareToSend() {
     // add the type and the length to the buffer
     int position = 0;
     buffer[position++] = type;
-    messLen = currentLen = HEADER_LEN;
+    messLen = currentLen = qHEADER_LEN;
     writeShort(currentLen, position);
 }
 
@@ -625,7 +625,7 @@ qPlayerInfoMessage::qPlayerInfoMessage() : qMessage(2) {}
 
 void qPlayerInfoMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
     // readInformation
-    int bytesRead = HEADER_LEN;
+    int bytesRead = qHEADER_LEN;
     // 3 uchar, 1 ushort
     uchar cores, cpuInt, cpuFrac, *buf;
     ushort ping;
@@ -669,10 +669,10 @@ qSendConnectInfo::qSendConnectInfo() : qMessage(6) {}
 
 void qSendConnectInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
     // readInformation
-    int bytesRead = HEADER_LEN;
+    int bytesRead = qHEADER_LEN;
     uchar *buf = getBuffer();
     family = buf[bytesRead++];
-    for (int i = 0; i < MAX_NET_ADDR; ++i) {
+    for (int i = 0; i < qMAX_NET_ADDR; ++i) {
         address[i] = (char) buf[bytesRead + i];
     }
 
@@ -682,7 +682,7 @@ void qSendConnectInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms
 
 void qSendConnectInfo::setProperties(uchar f, char *addr) {
     family = f;
-    for (int i = 0; i < MAX_NET_ADDR; ++i) {
+    for (int i = 0; i < qMAX_NET_ADDR; ++i) {
         address[i] = addr[i];
     }
 }
@@ -692,11 +692,11 @@ void qSendConnectInfo::prepareToSend() {
     int position = 0;
     uchar *buf = getBuffer();
     buf[position++] = getType();
-    setMessageLength(HEADER_LEN + MAX_NET_ADDR + 1);
-    setCurrentLength(HEADER_LEN + MAX_NET_ADDR + 1);
+    setMessageLength(qHEADER_LEN + qMAX_NET_ADDR + 1);
+    setCurrentLength(qHEADER_LEN + qMAX_NET_ADDR + 1);
     writeShort(getCurrentLength(), position);
     buf[position++] = family;
-    for (int i = 0; i < MAX_NET_ADDR; ++i) {
+    for (int i = 0; i < qMAX_NET_ADDR; ++i) {
         buf[position + i] = (uchar) address[i];
     }
 }

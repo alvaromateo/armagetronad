@@ -61,15 +61,15 @@ This file will contain all the different classes needed.
 
 
 // Defines
-#define PORT        	"3490"
-#define SERVER_IP		"79.153.71.108"
-#define BACKLOG     	20      				// How many pending connections queue will hold
-#define QPLAYERS    	2       				// number of players for each game
-#define MAX_BUF_SIZE 	128
-#define MAX_NET_ADDR	64
+#define qPORT        	"3490"
+#define qSERVER_IP		"79.153.71.108"
+#define qBACKLOG     	20      				// How many pending connections queue will hold
+#define qPLAYERS    	2       				// number of players for each game
+#define qMAX_BUF_SIZE 	128
+#define qMAX_NET_ADDR	64
 #define qCHAR_BITS 		8
 #define qSHORT_BYTES	2
-#define HEADER_LEN		3
+#define qHEADER_LEN		3
 
 
 typedef unsigned char uchar;
@@ -296,7 +296,7 @@ class qMessage {
 		// addMessagePart is in charge to build the message when it has been divided in different parts by the network
 		// it just adds new information received to the buffer until it has the specified message length
 		void addMessagePart(const uchar *buf, int numShorts);			
-		bool isMessageReadable() { return (messLen <= currentLen - HEADER_LEN) || !type; } 		// 3 are the header bytes
+		bool isMessageReadable() { return (messLen <= currentLen - qHEADER_LEN) || !type; } 		// 3 are the header bytes
 		void acknowledgeMessage(const MQ::iterator &it, qMessageStorage *ms);
 
 		virtual void handleMessage(const MQ::iterator &it, qMessageStorage *ms); 			// to read the message and create the corresponding derived class
@@ -371,7 +371,7 @@ class qSendHostingOrder: public qMessage {
 class qSendConnectInfo: public qMessage {
 	private:
 		uchar family;
-		char address[MAX_NET_ADDR]; 		// 16 bytes is for ipV6 addresses, which is the maximum
+		char address[qMAX_NET_ADDR]; 		// 16 bytes is for ipV6 addresses, which is the maximum
 		// The port is not necessary -> always the default one
 
 	public:
