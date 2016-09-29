@@ -199,8 +199,40 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 
 void gServerBrowser::BrowseQuickPlay ()
 {
+    // TODO: output the messages on the game screen
+    bool gameFound = false;
     // Our own socket server ready to handle all the queries of the players
     qPlayer myself();
+
+    std::cout << "Connected to quickplay server\n";
+
+    int count = 0;
+    // send our information to the server
+
+    // wait for the server response
+    while (!gameFound && myself.active()) {
+        if (myself.getData() == 0) {
+            std::cout << "Waiting for players...\n";
+            ++count;
+            if (count > 15) {           // Wait 20 x 15 seconds to find a game
+                std::cout << "Lost connection with server\n";
+                break;
+            } else {
+                myself.resendUnacked();
+            }
+        }
+        count = 0;          // reset count (server answered)
+        myself.processMessages();
+        myself.sendMessages();
+        gameFound = myself.gameFound();
+    }
+
+    if (!gameFound) {
+        std::cout << "Error -> Server hung up" << std::endl;
+    } else {
+
+    }
+
 
     // Server name and port hardcoded to my own server and port
     /*
@@ -208,10 +240,6 @@ void gServerBrowser::BrowseQuickPlay ()
     ConnectToServer( &quick_play_server );
     */
     // nServerInfo::StartQueryAll( nServerInfo::QUERY_QUICKPLAY );
-
-#ifdef DEBUG
-    con << "Connected to quickplay server" << "\n";
-#endif
 }
 
 void gServerBrowser::BrowseSpecialMaster( nServerInfoBase * master, char const * prefix )

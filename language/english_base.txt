@@ -2910,7 +2910,7 @@ global_id_help                If set to 1, Global IDs (Armathentication) will be
 # All the server settings are set by default.
 
 quick_match_text			Quick match
-quick_match_help			Play online with other players and default settings
+quick_match_help			Play online 1vs1 with other players
 
 # items that should not be translated
 include english_base_notranslate.txt

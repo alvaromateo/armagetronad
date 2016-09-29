@@ -35,6 +35,11 @@ using namespace std;
 uint qServerInstance::matchesIds = 1;
 
 
+// GLOBAL functions
+
+
+
+
 // qMessageStorage methods
 
 qMessageStorage::~qMessageStorage() {
@@ -57,11 +62,11 @@ qMessageStorage::~qMessageStorage() {
 void qMessageStorage::deleteMessage(MQ::iterator it, MQ &queue) {
     // delete the pointer to the message only if the message is only in one queue
     if (getSocketReferences(it) <= 1) {
-        cout << "message storage -> deleting message from memory\n";
+        cerr << "message storage -> deleting message from memory\n";
         delete it->second;
         it->second = NULL;
     }
-    cout << "message storage -> deleting message from queue\n";
+    cerr << "message storage -> deleting message from queue\n";
     queue.erase(it);
 }
 
@@ -76,7 +81,7 @@ void qMessageStorage::deleteMessage(int sock, MQ &queue) {
  * Move element pointed by it from originQueue to destQueue.
  */
 void qMessageStorage::moveMessage(MQ::iterator it, MQ &originQueue, MQ &destQueue) {
-    cout << "message storage -> moving message from queue:\n";
+    cerr << "message storage -> moving message from queue:\n";
     if (it != originQueue.end()) {
         addMessage(messElem(it->first, it->second), destQueue);
         deleteMessage(it, originQueue);
@@ -121,7 +126,7 @@ MQ::iterator qMessageStorage::getMessageFromQueue(int sock, MQ &queue) {
  * Adds a message to the given queue
  */
 void qMessageStorage::addMessage(const messElem &elem, MQ &queue) {
-    cout << "message storage -> adding message to queue\n";
+    cerr << "message storage -> adding message to queue\n";
     queue.insert(elem);
 }
 
@@ -131,7 +136,7 @@ void qMessageStorage::sendMessages() {
     MQ::iterator it = sendingQueue.begin();
     while (it != sendingQueue.end()) {
         if (it->second->send(it->first) < 0) {      // send message and get error status
-            cout << "sending message -> some error occurred - trying to resend...\n";
+            cerr << "sending message -> some error occurred - trying to resend...\n";
         }
         // move message to ack queue
         moveMessage(it, sendingQueue, pendingAckQueue);
@@ -168,6 +173,25 @@ qMessage *qMessageStorage::createMessage(uchar type) {
             ret = new qMessage();
     }
     return ret;
+}
+
+void qMessageStorage::handleData(const uchar *buf, int numBytes, int sock) {
+    uchar type = 0;
+
+    // find if there is already a message started in the socket
+    MQ::iterator it = getReceivedQueue().find(sock);
+    if (it != getReceivedQueue().end()) {
+        // message already exists -> add the new part to it
+        (it->second)->addMessagePart(buf, numBytes);
+    } else {
+        // new message to handle -> create it and add the just received part
+        type = buf[0];
+
+        qMessage *message = createMessage(type);
+        message->addMessagePart(buf, numBytes);
+        // add the message to the map
+        addMessage(messElem(sock, message), getReceivedQueue());
+    }
 }
 
 
@@ -207,23 +231,156 @@ int PlayerInfo::getCpuInfo(uchar *nCores, uchar *cpuSI, uchar *cpuSF, ushort *p)
 // qConnection methods
 
 qConnection::qConnection() {
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+    int retval;
 
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    retval = getaddrinfo(qSERVER_IP, qPORT, &hints, &servinfo);
+    if (retval != 0) {
+        cerr << "client -> getaddrinfo: " << gai_strerror(retval) << endl;
+    }
+
+    // loop through all the results and connect to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sockfd == -1) {
+            cerr << "client -> socket failed" << endl;
+            continue;
+        }
+        retval = connect(sockfd, p->ai_addr, p->ai_addrlen);
+        if (retval == -1) {
+            close(sockfd);
+            cerr << "client -> connect failed" << endl;
+            continue;
+        }
+        break;
+    }
+
+    if (p == NULL) {
+        cerr << "client -> failed to connect" << endl;
+    }
+
+    // print IP address
+    char str[qMAX_NET_ADDR];
+    if (p->ai_family == AF_INET) {
+        struct sockaddr_in *pV4Addr = reinterpret_cast<sockaddr_in *> (p->ai_addr);
+        struct in_addr ipAddr = pV4Addr->sin_addr;
+        inet_ntop(AF_INET, &ipAddr, str, qMAX_NET_ADDR);
+    } else {
+        struct sockaddr_in6 *pV6Addr = reinterpret_cast<sockaddr_in6 *> (p->ai_addr);
+        struct in6_addr ipAddr = pV6Addr->sin6_addr;
+        inet_ntop(AF_INET6, &ipAddr, str, qMAX_NET_ADDR);
+    }
+    cerr << "Client: connecting to " << str << endl;
+
+    freeaddrinfo(servinfo);         // all done with this structure
+
+    // set the class' variables -> only one used is sock
+    // the remoteaddr and addrlen are just useful to connect to other players
+    sock = sockfd;
 }
 
-qConnection::qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl) {
+qConnection::qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl) 
+    : sock(socket), remoteaddr(remoteaddress), addrlen(addrl) {}
 
+qConnection::~qConnection() {
+    close(sock);
 }
 
 
 // qPlayer methods
 
-qPlayer::qPlayer() {}
+qPlayer::qPlayer() : info(), matchId(0), master(false) {}
 
-qPlayer::qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl) {}
+qPlayer::qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl)
+    : qConnection(socket, remoteaddress, addrl), info(), matchId(0), master(false) {}
 
 qPlayer::~qPlayer() {}
 
-void qPlayer::processMessages() {}
+int qPlayer::getData() {
+    int nbytes, retval;
+    uchar buf[qMAX_BUF_SIZE];
+    struct timeval tv;
+    tv.tv_sec = 20;
+    tv.tv_usec = 0;
+
+    fd_set read_fds;        // temporal file descriptor list for select() function
+    FD_ZERO(&read_fds);
+    
+    // values from parent class
+    int *fdmax = getSockAddr();
+    FD_SET(*fdmax, read_fds);
+
+    retval = select(*fdmax + 1, &read_fds, NULL, NULL, &tv);
+    if (retval == -1) {
+        perror("client -> select failed\n");
+        exit(6);
+    }
+
+    if (FD_ISSET(*fdmax, &read_fds)) {   // there is some data ready
+        nbytes = recv(i, buf, sizeof(buf), 0);
+        if (nbytes <= 0) {      // error or connection closed by the client
+            if (nbytes == 0) { 
+                // connection closed
+                cerr << "client -> select: socket hung up\n";
+                // TODO: delete the player from the playerQueue and from possible matchesQueue (in case the client disconnected)
+            } else {
+                perror("client -> recv failed\n");
+            }
+
+            // we don't need this socket any more
+            close(*fdmax);
+            *fdmax = -1;
+        }  else {
+            // we got some data from a client -> handle it
+            cerr << "client -> data ready\n";
+            handleData(buf, nbytes, i);
+        }
+        retval = 1;
+    } else {
+        retval = 0;     // if 20 seconds pass waiting we return 0 and print a message
+    }
+
+    return retval;
+}
+
+void qPlayer::processMessages() {
+    MQ::iterator it = getReceivedQueue().begin();
+    while (it != getReceivedQueue().end()) {
+        if ((it->second)->isMessageReadable()) {
+            (it->second)->handleMessage(it, this);
+            // for some cases of messages received the server has to do extra work
+            vector<qPlayer *> clientPlayers;
+            qPlayer *player;
+            switch(it->second->getType()) {
+                case PLAYER_INFO:
+                    // get player and add info to it
+                    player = playerQueue.find(it->first)->second;
+                    player->setInfo(dynamic_cast<qPlayerInfoMessage *>(it->second));
+                    break;
+                case MATCH_READY:
+                    // send connect info to the players in the match
+                    // with the socket (it->first), get the player and its playerMatchId
+                    player = getPlayer(it->first);
+                    if (player) {
+                        // search the rest of the players with that playerMatchId
+                        fillClientPlayers(clientPlayers, player->getMatchId());
+                        // send them connectInfo message
+                        sendConnectMessages(clientPlayers);
+                    }
+                    // delete the master from the players with that matchId
+                    deletePlayerFromMatches(it->first, player->getMatchId());
+                    break;
+            }
+            deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
+        }
+        ++it;
+    }
+}
 
 void qPlayer::setInfo(qPlayerInfoMessage *message) {
     info = message->getInfo();
@@ -253,7 +410,7 @@ qServer::qServer() {
 
     retval = getaddrinfo(NULL, qPORT, &hints, &servinfo);
     if (retval != 0) {
-        cerr << "server getaddrinfo: " << gai_strerror(retval) << endl;
+        cerr << "server -> getaddrinfo: " << gai_strerror(retval) << endl;
         exit(1);
     }
 
@@ -261,26 +418,26 @@ qServer::qServer() {
     for (p = servinfo; p != NULL; p = p->ai_next) {
         this->listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
         if (this->listener == -1) {
-            cout << "socked failed\n";
+            cerr << "server -> socked failed\n";
             continue;   // there was an error when opening the file, so we look into the next addrinfo stored in servinfo
         }
 
         retval = fcntl(this->listener, F_SETFL, O_NONBLOCK);
         if (retval == -1) {
-            perror("fcntl failed\n");
+            perror("server -> fcntl failed\n");
             exit(2);
         }
 
         retval = setsockopt(this->listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
         if (retval == -1) {
-            perror("setsockopt failed\n");    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
+            perror("server -> setsockopt failed\n");    // this sets an option on the sockets to avoid error messages about port already in use when restarting the server
             exit(3);
         }
 
         retval = bind(this->listener, p->ai_addr, p->ai_addrlen);
         if (retval == -1) {
             close(this->listener);
-            cout << "server bind failed\n";
+            cerr << "server -> bind failed\n";
             continue;
         }
 
@@ -295,7 +452,7 @@ qServer::qServer() {
             struct in6_addr ipAddr = pV6Addr->sin6_addr;
             inet_ntop(AF_INET6, &ipAddr, str, qMAX_NET_ADDR);
         }
-        printf("server IP address: %s", str);
+        cerr << "server IP address: " << str << endl;
 
         break; // if this instruction is reached it means all three system calls were successful and we can proceed
     }
@@ -318,7 +475,11 @@ qServer::qServer() {
 	FD_SET(this->listener, &this->master);      // adds the listener to the master set of descriptors
     this->fdmax = this->listener;         		// keep track of the maximum file descriptor
 
-    cout << "Server started\n";
+    cerr << "Server started\n";
+}
+
+qServer::~qServer() {
+    close(listener);
 }
 
 
@@ -372,7 +533,7 @@ void qServerInstance::getData() {
                     if (newfd > *fdmax) {
                         *fdmax = newfd;      // keep track of the max
                     }
-                    cout << "server -> select: new connection on socket " << i << endl;
+                    cerr << "server -> select: new connection on socket " << i << endl;
 
                     qPlayer *newPlayer = new qPlayer(newfd, remoteaddr, addrlen);     // create new player
                     addPlayer(newPlayer, newfd);                                     // add player to the queue of players
@@ -380,7 +541,7 @@ void qServerInstance::getData() {
 
                 retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
                 if (retval == -1) {
-                    cout << "server -> socket " << i << " could not be set to non blocking\n";
+                    cerr << "server -> socket " << i << " could not be set to non blocking\n";
                 }
 
             } else {        // handle data from a client
@@ -388,7 +549,7 @@ void qServerInstance::getData() {
                 if (nbytes <= 0) {      // error or connection closed by the client
                     if (nbytes == 0) { 
                         // connection closed
-                        cout << "server -> select: socket hung up\n";
+                        cerr << "server -> select: socket hung up\n";
                         // TODO: delete the player from the playerQueue and from possible matchesQueue (in case the client disconnected)
                     } else {
                         perror("server -> recv failed\n");
@@ -399,32 +560,13 @@ void qServerInstance::getData() {
                     FD_CLR(i, master);     // remove it from master set
                 }  else {
                     // we got some data from a client -> handle it
-                    cout << "server -> data ready for socket " << i << "\n";
+                    cerr << "server -> data ready for socket " << i << "\n";
                     handleData(buf, nbytes, i);
                 }
             }       // end handle data from client
         }       // end of FD_ISSET
     }       // end of looping through the existing connections
 
-}
-
-void qServerInstance::handleData(const uchar *buf, int numBytes, int sock) {
-    uchar type = 0;
-
-    // find if there is already a message started in the socket
-    MQ::iterator it = getReceivedQueue().find(sock);
-    if (it != getReceivedQueue().end()) {
-        // message already exists -> add the new part to it
-        (it->second)->addMessagePart(buf, numBytes);
-    } else {
-        // new message to handle -> create it and add the just received part
-        type = buf[0];
-
-        qMessage *message = createMessage(type);
-        message->addMessagePart(buf, numBytes);
-        // add the message to the map
-        addMessage(messElem(sock, message), getReceivedQueue());
-    }
 }
 
 void qServerInstance::deletePlayerFromMatches(int sock, uint id) {
@@ -495,7 +637,7 @@ void qServerInstance::fillClientPlayers(vector<qPlayer *> &cPlayers, uint matchI
 
 void qServerInstance::sendConnectMessages(const vector<qPlayer *> &cPlayers) {
     for (vector<qPlayer *>::const_iterator it = cPlayers.cbegin(); it != cPlayers.cend(); ++it) {
-        cout << "server -> storing connection information for client\n";
+        cerr << "server -> storing connection information for client\n";
 
         // fill message with information
         uchar nFamily;
@@ -641,7 +783,7 @@ void qMessage::acknowledgeMessage(const MQ::iterator &it, qMessageStorage *ms) {
     qMessage *message = new qAckMessage();
     message->prepareToSend();
     ms->addMessage(messElem(it->first, message), ms->getSendingQueue());
-    cout << "message - read and aknowledged\n";
+    cerr << "message -> read and aknowledged\n";
 }
 
 
@@ -747,15 +889,9 @@ void qSendPeersInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) 
 }
 
 
-// PlayerInfo methods
-
-
-
-
-
 // Timer
 
-Timer::Timer(int after, TimerCallbacks tc) {           // add arguments after tc, if needed
+Timer::Timer(int after, TimerCallbacks tc, ) {           // add arguments after tc, if needed
     std::this_thread::sleep_for(std::chrono::milliseconds(after));
     switch (tc) {
         case RESEND_TIMEOUT:

@@ -136,6 +136,7 @@ class qMessageStorage {
 		void deleteMessage(int sock, MQ &queue);
 		void addMessage(const messElem &elem, MQ &queue);
 		void moveMessage(MQ::iterator it, MQ &originQueue, MQ &destQueue);
+		void handleData(const uchar *buf, int numBytes, int sock);
 
 		qMessage *createMessage(uchar type);
 		virtual void processMessages() = 0;
@@ -179,7 +180,9 @@ class qConnection {
 		virtual ~qConnection() {}
 
 		inline int getSock() { return sock; }
+		inline int *getSockAddr() { return &sock; }
 		inline const sockaddr_storage &getSockaddrStorage() { return remoteaddr; }
+		inline bool active() { return sock >= 0; }
 };
 
 class qPlayer : public qConnection, public qMessageStorage {
@@ -202,7 +205,9 @@ class qPlayer : public qConnection, public qMessageStorage {
 		void setInfo(qPlayerInfoMessage *message);
 
 		void processMessages();
+		void resendUnacked();
 		bool hasBetterPC(qPlayer *other);
+		int getData();
 
 };
 
@@ -244,7 +249,6 @@ class qServerInstance : public qServer, public qMessageStorage {
 		PQ playerQueue;			// Queue for holding the players that have to be paired
 		MatchQ matchesQueue; 	// Queue for holding the matches before they start
 
-		void handleData(const uchar *buf, int numBytes, int sock); 		// reads the information received in a socket and returns -1 on error
 		void fillClientPlayers(std::vector<qPlayer *> &cPlayers, uint matchId);
 		void sendConnectMessages(const std::vector<qPlayer *> &cPlayers);
 
