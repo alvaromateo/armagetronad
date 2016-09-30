@@ -200,6 +200,7 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 void gServerBrowser::BrowseQuickPlay ()
 {
     // TODO: output the messages on the game screen
+    
     bool gameFound = false;
     // Our own socket server ready to handle all the queries of the players
     qPlayer myself();
@@ -218,6 +219,8 @@ void gServerBrowser::BrowseQuickPlay ()
                 con << "Lost connection with server\n";
                 break;
             } else {
+                // Each 20 seconds without receiving response the message is resent
+                // If there is no message to resend a resend message is sent
                 myself.resendUnacked();
             }
         }
@@ -230,7 +233,17 @@ void gServerBrowser::BrowseQuickPlay ()
     if (!gameFound) {
         con << "Error -> Server hung up\n";
     } else {
+        if (myself.isMaster()) {
+            // start game
 
+            // send match ready message
+
+            // when match starts close socket with server
+        } else {
+            // close socket with server
+
+            // connect to game
+        }
     }
 
 

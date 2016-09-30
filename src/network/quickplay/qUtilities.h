@@ -95,7 +95,7 @@ enum MessageTypes {
 	RESEND,
 	SEND_HOST,
 	SEND_CONNECT,
-	SEND_PEERS
+	SEND_PEERS,
 };
 
 
@@ -181,7 +181,7 @@ class qConnection {
 
 		inline int getSock() { return sock; }
 		inline int *getSockAddr() { return &sock; }
-		inline const sockaddr_storage &getSockaddrStorage() { return remoteaddr; }
+		inline sockaddr_storage *getSockaddrStorage() { return remoteaddr; }
 		inline bool active() { return sock >= 0; }
 };
 
@@ -199,6 +199,7 @@ class qPlayer : public qConnection, public qMessageStorage {
 		inline uint getMatchId() { return matchId; }
 		inline bool isMaster() { return master; }
 		inline bool isPlayerAvailable() { return (matchId == 0) && info.isInitialized(); }
+		inline bool gameFound() { return master || getSockaddrStorage()->ai_family; }		// if we are the master or remoteaddr to connect is initialized
 
 		void setMatchId(uint id) { matchId = id; }
 		void setMaster(bool m) { master = m; }
@@ -385,6 +386,9 @@ class qSendConnectInfo: public qMessage {
 		void handleMessage(const MQ::iterator &it, qMessageStorage *ms);
 		void setProperties(uchar f, char *addr);
 		void prepareToSend();
+
+		inline uchar getFamily() { return family; }
+		inline char *getAddress() { return address; }
 };
 
 /*
