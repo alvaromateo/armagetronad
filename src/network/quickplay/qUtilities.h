@@ -158,7 +158,7 @@ class PlayerInfo {
 
 	public:
 		PlayerInfo();
-		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional);
+		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional, ushort ping);
 
 		bool isInitialized() { return numCores > 0; }
 		void setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p);
@@ -177,7 +177,7 @@ class qConnection {
 	public:
 		qConnection();																	// initializes connection with the server
 		qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl);		// initializes connection to given remoteaddress
-		virtual ~qConnection() {}
+		virtual ~qConnection();
 
 		inline int getSock() { return sock; }
 		inline int *getSockAddr() { return &sock; }
@@ -223,11 +223,9 @@ class qServer {
 		int fdmax; 								// maximum file descriptor number
 		fd_set master;          				// master file descriptor list
 
-		virtual void handleData(const uchar *buf, int numBytes, int sock) = 0;
-
 	public:
 		qServer();
-		virtual ~qServer() {}
+		virtual ~qServer();
 
 		// getters
 		inline fd_set *getFileDescriptorList() { return &master; }

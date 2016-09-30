@@ -313,7 +313,7 @@ int qPlayer::getData() {
     
     // values from parent class
     int *fdmax = getSockAddr();
-    FD_SET(*fdmax, read_fds);
+    FD_SET(*fdmax, &read_fds);
 
     retval = select(*fdmax + 1, &read_fds, NULL, NULL, &tv);
     if (retval == -1) {
@@ -322,7 +322,7 @@ int qPlayer::getData() {
     }
 
     if (FD_ISSET(*fdmax, &read_fds)) {   // there is some data ready
-        nbytes = recv(i, buf, sizeof(buf), 0);
+        nbytes = recv(*fdmax, buf, sizeof(buf), 0);
         if (nbytes <= 0) {      // error or connection closed by the client
             if (nbytes == 0) { 
                 // connection closed
@@ -338,7 +338,7 @@ int qPlayer::getData() {
         }  else {
             // we got some data from a client -> handle it
             cerr << "client -> data ready\n";
-            handleData(buf, nbytes, i);
+            handleData(buf, nbytes, *fdmax);
         }
         retval = 1;
     } else {
@@ -348,7 +348,7 @@ int qPlayer::getData() {
     return retval;
 }
 
-void qPlayer::processMessages() {
+void qPlayer::processMessages() {/*
     MQ::iterator it = getReceivedQueue().begin();
     while (it != getReceivedQueue().end()) {
         if ((it->second)->isMessageReadable()) {
@@ -379,7 +379,7 @@ void qPlayer::processMessages() {
             deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
         }
         ++it;
-    }
+    }*/
 }
 
 void qPlayer::setInfo(qPlayerInfoMessage *message) {
@@ -891,7 +891,7 @@ void qSendPeersInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) 
 
 // Timer
 
-Timer::Timer(int after, TimerCallbacks tc, ) {           // add arguments after tc, if needed
+Timer::Timer(int after, TimerCallbacks tc) {           // add arguments after tc, if needed
     std::this_thread::sleep_for(std::chrono::milliseconds(after));
     switch (tc) {
         case RESEND_TIMEOUT:

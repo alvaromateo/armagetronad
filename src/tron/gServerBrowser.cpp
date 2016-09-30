@@ -204,7 +204,7 @@ void gServerBrowser::BrowseQuickPlay ()
     // Our own socket server ready to handle all the queries of the players
     qPlayer myself();
 
-    std::cout << "Connected to quickplay server\n";
+    con << "Connected to quickplay server\n";
 
     int count = 0;
     // send our information to the server
@@ -212,10 +212,10 @@ void gServerBrowser::BrowseQuickPlay ()
     // wait for the server response
     while (!gameFound && myself.active()) {
         if (myself.getData() == 0) {
-            std::cout << "Waiting for players...\n";
+            con << "Waiting for players...\n";
             ++count;
             if (count > 15) {           // Wait 20 x 15 seconds to find a game
-                std::cout << "Lost connection with server\n";
+                con << "Lost connection with server\n";
                 break;
             } else {
                 myself.resendUnacked();
@@ -228,7 +228,7 @@ void gServerBrowser::BrowseQuickPlay ()
     }
 
     if (!gameFound) {
-        std::cout << "Error -> Server hung up" << std::endl;
+        con << "Error -> Server hung up\n";
     } else {
 
     }

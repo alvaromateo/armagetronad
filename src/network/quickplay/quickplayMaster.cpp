@@ -73,7 +73,7 @@ If some of the languages strings are added, then re-run ./bootstrap.sh !!
 int main(int argc, char **argv) {
     // the players should have some type of timeout to resend automatically messages if they have
     // not been acked by the server
-    int matchsCreated;
+    int matchesCreated;
     qServerInstance quickServer;
     while (1) {
         // handle connections
