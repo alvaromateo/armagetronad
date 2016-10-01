@@ -172,11 +172,10 @@ class qConnection {
 	private:
 		int sock; 									// the socket destined to the connection
 		struct sockaddr_storage remoteaddr;			// client address
-		socklen_t addrlen;							// length of the address (IPv4 or IPv6)
 
 	public:
-		qConnection();																	// initializes connection with the server
-		qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl);		// initializes connection to given remoteaddress
+		qConnection();													// initializes connection with the server
+		qConnection(int socket, sockaddr_storage remoteaddress);		// initializes connection to given remoteaddress
 		virtual ~qConnection();
 
 		inline int getSock() { return sock; }
@@ -193,7 +192,7 @@ class qPlayer : public qConnection, public qMessageStorage {
 
 	public:
 		qPlayer(); 			// set current player
-		qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl);
+		qPlayer(int socket, sockaddr_storage remoteaddress);
 		~qPlayer();
 
 		inline uint getMatchId() { return matchId; }

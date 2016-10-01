@@ -280,13 +280,13 @@ qConnection::qConnection() {
     freeaddrinfo(servinfo);         // all done with this structure
 
     // set the class' variables -> only one used is sock
-    // the remoteaddr and addrlen are just useful to connect to other players
+    // the remoteaddr is just useful to connect to other players
     sock = sockfd;
     remoteaddr.ai_family = 0;
 }
 
-qConnection::qConnection(int socket, sockaddr_storage remoteaddress, socklen_t addrl) 
-    : sock(socket), remoteaddr(remoteaddress), addrlen(addrl) {}
+qConnection::qConnection(int socket, sockaddr_storage remoteaddress) 
+    : sock(socket), remoteaddr(remoteaddress) {}
 
 qConnection::~qConnection() {
     close(sock);
@@ -297,8 +297,8 @@ qConnection::~qConnection() {
 
 qPlayer::qPlayer() : info(), matchId(0), master(false) {}
 
-qPlayer::qPlayer(int socket, sockaddr_storage remoteaddress, socklen_t addrl)
-    : qConnection(socket, remoteaddress, addrl), info(), matchId(0), master(false) {}
+qPlayer::qPlayer(int socket, sockaddr_storage remoteaddress)
+    : qConnection(socket, remoteaddress), info(), matchId(0), master(false) {}
 
 qPlayer::~qPlayer() {}
 
@@ -374,13 +374,16 @@ void qPlayer::processMessages() {
 void qPlayer::setConnection(qSendConnectInfo *message) {
     if (message->getFamily()) {         // ipV6 family == 1
         struct sockaddr_in6 *ipV6Addr;
-        memset(&ipV6Addr, 0, sizeof(ipV6Addr));
+        memset(ipV6Addr, 0, sizeof(ipV6Addr));
         ipV6Addr->sin6_family = AF_INET6;
-        inet_pton(AF_INET6, message->getAddress(), &ipV6Addr->sin6_addr);
+        inet_pton(AF_INET6, message->getAddress(), &(ipV6Addr->sin6_addr));
         *(getSockaddrStorage()) = *(reinterpret_cast<sockaddr_storage *> (ipV6Addr));
     } else {                            // ipV4 family == 0
-        struct sockaddr_in ipV4Addr;
-        
+        struct sockaddr_in *ipV4Addr;
+        memset(ipV4Addr, 0, sizeof(ipV4Addr));
+        ipV4Addr->sin6_family = AF_INET;
+        inet_pton(AF_INET, message->getAddress(), &(ipV4Addr->sin_addr));
+        *(getSockaddrStorage()) = *(reinterpret_cast<sockaddr_storage *> (ipV4Addr));
     }
 }
 
@@ -537,8 +540,8 @@ void qServerInstance::getData() {
                     }
                     cerr << "server -> select: new connection on socket " << i << endl;
 
-                    qPlayer *newPlayer = new qPlayer(newfd, remoteaddr, addrlen);     // create new player
-                    addPlayer(newPlayer, newfd);                                     // add player to the queue of players
+                    qPlayer *newPlayer = new qPlayer(newfd, remoteaddr);        // create new player
+                    addPlayer(newPlayer, newfd);                                // add player to the queue of players
                 }
 
                 retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
