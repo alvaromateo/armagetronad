@@ -130,17 +130,24 @@ void qMessageStorage::addMessage(const messElem &elem, MQ &queue) {
     queue.insert(elem);
 }
 
-// qPlayer has to redefine this method to move the message to the ack queue and set a timeout
-// moveMessage(it, sendingQueue, pendingAckQueue);
 void qMessageStorage::sendMessages() {
     MQ::iterator it = sendingQueue.begin();
     while (it != sendingQueue.end()) {
         if (it->second->send(it->first) < 0) {      // send message and get error status
             cerr << "sending message -> some error occurred - trying to resend...\n";
+        } else {
+            // move message to ack queue
+            moveMessage(it, sendingQueue, pendingAckQueue);
         }
-        // move message to ack queue
-        moveMessage(it, sendingQueue, pendingAckQueue);
         ++it;
+    }
+}
+
+void qMessageStorage::resendUnacked() {
+    MQ::iterator it = pendingAckQueue.begin();
+    while (it != pendingAckQueue.end()) {
+        // move message to sending queue
+        moveMessage(it, pendingAckQueue, sendingQueue);
     }
 }
 
@@ -355,7 +362,6 @@ void qPlayer::processMessages() {
     while (it != getReceivedQueue().end()) {
         if ((it->second)->isMessageReadable()) {
             (it->second)->handleMessage(it, this);
-            // switch variables
 
             switch(it->second->getType()) {
                 case SEND_HOST:

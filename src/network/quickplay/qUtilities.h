@@ -114,6 +114,7 @@ class Timer {
 };
 
 
+
 class qMessageStorage {
 	private:
 		// a message can only be in one queue at a time
@@ -141,6 +142,7 @@ class qMessageStorage {
 		qMessage *createMessage(uchar type);
 		virtual void processMessages() = 0;
 		virtual void sendMessages();
+		virtual void resendUnacked();
 };
 
 

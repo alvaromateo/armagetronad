@@ -210,6 +210,8 @@ void gServerBrowser::BrowseQuickPlay ()
     int count = 0;
     // send our information to the server
 
+    con << "Looking for other players...\n";
+    
     // wait for the server response
     while (!gameFound && myself.active()) {
         if (myself.getData() == 0) {
