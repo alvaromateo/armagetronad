@@ -99,22 +99,6 @@ enum MessageTypes {
 };
 
 
-enum TimerCallbacks {
-    RESEND_TIMEOUT = 1
-};
-
-
-class Timer {
-    private:
-        void task() {}
-        void defaultTask() { std::cout << "Time's up!\n"; }
-
-    public:
-        Timer(int after, TimerCallbacks tc = RESEND_TIMEOUT);
-};
-
-
-
 class qMessageStorage {
 	private:
 		// a message can only be in one queue at a time

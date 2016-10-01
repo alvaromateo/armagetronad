@@ -902,17 +902,3 @@ void qSendPeersInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms) 
     // and send back the server a message of qPlayerInfoMessage with the new information added
 }
 
-
-// Timer
-
-Timer::Timer(int after, TimerCallbacks tc) {           // add arguments after tc, if needed
-    std::this_thread::sleep_for(std::chrono::milliseconds(after));
-    switch (tc) {
-        case RESEND_TIMEOUT:
-            task();
-        default:
-            defaultTask();
-    }
-}
-
-
