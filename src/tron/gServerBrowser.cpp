@@ -203,7 +203,7 @@ void gServerBrowser::BrowseQuickPlay ()
     
     bool gameFound = false;
     // Our own socket server ready to handle all the queries of the players
-    qPlayer myself();
+    qPlayer myself;
 
     con << "Connected to quickplay server\n";
 
@@ -211,7 +211,7 @@ void gServerBrowser::BrowseQuickPlay ()
     // send our information to the server
 
     con << "Looking for other players...\n";
-    
+
     // wait for the server response
     while (!gameFound && myself.active()) {
         if (myself.getData() == 0) {

@@ -218,7 +218,8 @@ void PlayerInfo::setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p)
 
 int PlayerInfo::setCpuInfo() {
     uchar *nCores, *cpuSI, *cpuSF;
-    ushort *p;
+    nCores = cpuSI = cpuSF = NULL;
+    ushort *p = NULL;
     int res = getCpuInfo(nCores, cpuSI, cpuSF, p);
     if (res >= 0) {
         setProperties(*nCores, *cpuSI, *cpuSF, *p);
@@ -232,6 +233,7 @@ int PlayerInfo::getCpuInfo(uchar *nCores, uchar *cpuSI, uchar *cpuSF, ushort *p)
     *cpuSI = 0;
     *cpuSF = 0;
     *p = 0;
+    return 0;
 }
 
 
@@ -289,7 +291,7 @@ qConnection::qConnection() {
     // set the class' variables -> only one used is sock
     // the remoteaddr is just useful to connect to other players
     sock = sockfd;
-    remoteaddr.ai_family = 0;
+    remoteaddr.ss_family = 0;
 }
 
 qConnection::qConnection(int socket, sockaddr_storage remoteaddress) 
@@ -368,7 +370,7 @@ void qPlayer::processMessages() {
                     this->master = true;
                     break;
                 case SEND_CONNECT:
-                    this->setConnection(it->second);
+                    this->setConnection(dynamic_cast<qSendConnectInfo *>(it->second));
                     break;
             }
             deleteMessage(it, getReceivedQueue());      // the message has to be deleted to free memory
@@ -379,17 +381,17 @@ void qPlayer::processMessages() {
 
 void qPlayer::setConnection(qSendConnectInfo *message) {
     if (message->getFamily()) {         // ipV6 family == 1
-        struct sockaddr_in6 *ipV6Addr;
-        memset(ipV6Addr, 0, sizeof(ipV6Addr));
-        ipV6Addr->sin6_family = AF_INET6;
-        inet_pton(AF_INET6, message->getAddress(), &(ipV6Addr->sin6_addr));
-        *(getSockaddrStorage()) = *(reinterpret_cast<sockaddr_storage *> (ipV6Addr));
+        struct sockaddr_in6 ipV6Addr;
+        memset(&ipV6Addr, 0, sizeof(ipV6Addr));
+        ipV6Addr.sin6_family = AF_INET6;
+        inet_pton(AF_INET6, message->getAddress(), &(ipV6Addr.sin6_addr));
+        *(getSockaddrStorage()) = *(reinterpret_cast<sockaddr_storage *> (&ipV6Addr));
     } else {                            // ipV4 family == 0
-        struct sockaddr_in *ipV4Addr;
-        memset(ipV4Addr, 0, sizeof(ipV4Addr));
-        ipV4Addr->sin6_family = AF_INET;
-        inet_pton(AF_INET, message->getAddress(), &(ipV4Addr->sin_addr));
-        *(getSockaddrStorage()) = *(reinterpret_cast<sockaddr_storage *> (ipV4Addr));
+        struct sockaddr_in ipV4Addr;
+        memset(&ipV4Addr, 0, sizeof(ipV4Addr));
+        ipV4Addr.sin_family = AF_INET;
+        inet_pton(AF_INET, message->getAddress(), &(ipV4Addr.sin_addr));
+        *(getSockaddrStorage()) = *(reinterpret_cast<sockaddr_storage *> (&ipV4Addr));
     }
 }
 

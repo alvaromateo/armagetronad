@@ -78,6 +78,7 @@ typedef unsigned int uint;
 
 
 class qMessage;
+class qSendConnectInfo;
 class qPlayerInfoMessage;
 class qPlayer;
 
@@ -95,7 +96,7 @@ enum MessageTypes {
 	RESEND,
 	SEND_HOST,
 	SEND_CONNECT,
-	SEND_PEERS,
+	SEND_PEERS
 };
 
 
@@ -166,7 +167,7 @@ class qConnection {
 
 		inline int getSock() { return sock; }
 		inline int *getSockAddr() { return &sock; }
-		inline sockaddr_storage *getSockaddrStorage() { return remoteaddr; }
+		inline sockaddr_storage *getSockaddrStorage() { return &remoteaddr; }
 		inline bool active() { return sock >= 0; }
 };
 
@@ -184,14 +185,14 @@ class qPlayer : public qConnection, public qMessageStorage {
 		inline uint getMatchId() { return matchId; }
 		inline bool isMaster() { return master; }
 		inline bool isPlayerAvailable() { return (matchId == 0) && info.isInitialized(); }
-		inline bool gameFound() { return master || getSockaddrStorage()->ai_family; }		// if we are the master or remoteaddr to connect is initialized
+		inline bool gameFound() { return master || getSockaddrStorage()->ss_family; }		// if we are the master or remoteaddr to connect is initialized
 
 		void setMatchId(uint id) { matchId = id; }
 		void setMaster(bool m) { master = m; }
 		void setInfo(qPlayerInfoMessage *message);
+		void setConnection(qSendConnectInfo *message);
 
 		void processMessages();
-		void resendUnacked();
 		bool hasBetterPC(qPlayer *other);
 		int getData();
 
