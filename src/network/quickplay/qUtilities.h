@@ -62,7 +62,7 @@ This file will contain all the different classes needed.
 
 // Defines
 #define qPORT        	"3490"
-#define qSERVER_IP		"79.153.71.108"
+#define qSERVER_IP		"127.0.0.1"
 #define qBACKLOG     	20      				// How many pending connections queue will hold
 #define qPLAYERS    	2       				// number of players for each game
 #define qMAX_BUF_SIZE 	128

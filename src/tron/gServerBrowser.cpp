@@ -199,26 +199,32 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 
 void gServerBrowser::BrowseQuickPlay ()
 {
-    // TODO: output the messages on the game screen
-    
+    // output the messages on the game screen
+    sr_con.autoDisplayAtNewline = true;
+    sr_con.fullscreen = true;
+    sr_textOut = true;
+    tOutput o;
+
     bool gameFound = false;
+
     // Our own socket server ready to handle all the queries of the players
     qPlayer myself;
 
-    con << "Connected to quickplay server\n";
+    o << tString("Connected to quickplay server\n");
+    con << o;
 
     int count = 0;
     // send our information to the server
 
-    con << "Looking for other players...\n";
+    con << tString("Looking for other players...\n");
 
     // wait for the server response
     while (!gameFound && myself.active()) {
         if (myself.getData() == 0) {
-            con << "Waiting for players...\n";
+            con << tString("Waiting for players...\n");
             ++count;
-            if (count > 15) {           // Wait 20 x 15 seconds to find a game
-                con << "Lost connection with server\n";
+            if (count > 20) {           // Wait 10 x 20 seconds to find a game
+                con << tString("Lost connection with server\n");
                 break;
             } else {
                 // Each 20 seconds without receiving response the message is resent
@@ -233,28 +239,36 @@ void gServerBrowser::BrowseQuickPlay ()
     }
 
     if (!gameFound) {
-        con << "Error -> Server hung up\n";
+        con << tString("Error -> Server hung up\n");
     } else {
         if (myself.isMaster()) {
+            con << tString("I am the master of the game\n");
+
             // start game
 
             // send match ready message
 
             // when match starts close socket with server
         } else {
+            con << tString("I am a client of the game\n");
+            
             // close socket with server
 
             // connect to game
         }
     }
 
+    /* Once the sg_hostGame function starts we won't be able to tell the master.
+        Solution! create a thread and send the message with a delay of 1 second to the server
+            while we create the game.
 
-    // Server name and port hardcoded to my own server and port
-    /*
-    nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 4533);
-    ConnectToServer( &quick_play_server );
+        sg_copySettings() to set the number of players
+        sg_HostGame() to create the match (main thread)
+        
+        ConnectToServer() to join a match:
+            nServerInfoRedirect quick_play_server(tString("79.153.71.108"), 4533);
+            ConnectToServer( &quick_play_server );
     */
-    // nServerInfo::StartQueryAll( nServerInfo::QUERY_QUICKPLAY );
 }
 
 void gServerBrowser::BrowseSpecialMaster( nServerInfoBase * master, char const * prefix )
@@ -304,7 +318,6 @@ void gServerBrowser::BrowseSpecialMaster( nServerInfoBase * master, char const *
 
 void gServerBrowser::BrowseLAN()
 {
-    // TODO: reacivate and see what happens. Done.
     sg_RequestLANcontinuously = true;
     //	sg_RequestLANcontinuously = false;
 
