@@ -215,6 +215,7 @@ void gServerBrowser::BrowseQuickPlay ()
 
     int count = 0;
     // send our information to the server
+    myself.sendMyInfoToServer();
 
     con << tString("Looking for other players...\n");
 
@@ -251,7 +252,7 @@ void gServerBrowser::BrowseQuickPlay ()
             // when match starts close socket with server
         } else {
             con << tString("I am a client of the game\n");
-            
+
             // close socket with server
 
             // connect to game

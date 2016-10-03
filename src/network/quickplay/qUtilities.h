@@ -147,6 +147,12 @@ class PlayerInfo {
 		PlayerInfo();
 		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional, ushort ping);
 
+		// getters
+		inline uchar getNumCores() { return numCores; }
+		inline uchar getCpuSpeedInt() { return cpuSpeedInteger; }
+		inline uchar getCpuSpeedFrac() { return cpuSpeedFractional; }
+		inline ushort getPing() { return ping; }
+
 		bool isInitialized() { return numCores > 0; }
 		void setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p);
 		int setCpuInfo();
@@ -191,6 +197,7 @@ class qPlayer : public qConnection, public qMessageStorage {
 		void setMaster(bool m) { master = m; }
 		void setInfo(qPlayerInfoMessage *message);
 		void setConnection(qSendConnectInfo *message);
+		void sendMyInfoToServer();
 
 		void processMessages();
 		bool hasBetterPC(qPlayer *other);
@@ -323,6 +330,8 @@ class qPlayerInfoMessage : public qMessage {
 		qPlayerInfoMessage();
 		~qPlayerInfoMessage() {}
 		PlayerInfo getInfo() { return info; }
+		void setProperties(const PlayerInfo &information);
+		void prepareToSend();
 		void handleMessage(const MQ::iterator &it, qMessageStorage *ms);
 };
 

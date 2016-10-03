@@ -414,6 +414,15 @@ void qPlayer::setInfo(qPlayerInfoMessage *message) {
     info = message->getInfo();
 }
 
+void qPlayer::sendMyInfoToServer() {
+    setCpuInfo();
+    qMessage *message = new qPlayerInfoMessage();
+    message->setProperties(this->info);
+    message->prepareToSend();
+    addMessage(messElem((*it)->getSock(), message), getSendingQueue());
+    cerr << "player -> added qPlayerInfoMessage to sendingQueue\n";
+}
+
 bool qPlayer::hasBetterPC(qPlayer *other) {
     // TODO
     return false;
@@ -855,6 +864,25 @@ void qPlayerInfoMessage::handleMessage(const MQ::iterator &it, qMessageStorage *
     info.setProperties(cores, cpuInt, cpuFrac, ping);
 
     acknowledgeMessage(it, ms);
+}
+
+void qPlayerInfoMessage::setProperties(const PlayerInfo &information) {
+    info.setProperties(information.numCores, information.cpuSpeedInteger, 
+        information.cpuSpeedFractional, information.ping);
+}
+
+void qPlayerInfoMessage::prepareToSend() {
+    // write to the buffer
+    int position = 0;
+    uchar *buf = getBuffer();
+    buf[position++] = getType();
+    setMessageLength(qHEADER_LEN + qMAX_NET_ADDR + 1);
+    setCurrentLength(qHEADER_LEN + qMAX_NET_ADDR + 1);
+    writeShort(getCurrentLength(), position);
+    buf[position++] = info.getNumCores();
+    buf[position++] = info.getCpuSpeedInt();
+    buf[position++] = info.getCpuSpeedFrac();
+    writeShort(info.getPing(), position);
 }
 
 
