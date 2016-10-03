@@ -301,6 +301,7 @@ qConnection::qConnection() {
         // the remoteaddr is just useful to connect to other players
         sock = sockfd;
         remoteaddr.ss_family = 0;
+        cerr << "client -> connected to socket " << sock << "\n";
     }
 }
 
@@ -415,11 +416,11 @@ void qPlayer::setInfo(qPlayerInfoMessage *message) {
 }
 
 void qPlayer::sendMyInfoToServer() {
-    setCpuInfo();
-    qMessage *message = new qPlayerInfoMessage();
-    message->setProperties(this->info);
+    info.setCpuInfo();
+    qPlayerInfoMessage *message = new qPlayerInfoMessage();
+    message->setProperties(info);
     message->prepareToSend();
-    addMessage(messElem((*it)->getSock(), message), getSendingQueue());
+    addMessage(messElem(getSock(), message), getSendingQueue());
     cerr << "player -> added qPlayerInfoMessage to sendingQueue\n";
 }
 
@@ -867,8 +868,8 @@ void qPlayerInfoMessage::handleMessage(const MQ::iterator &it, qMessageStorage *
 }
 
 void qPlayerInfoMessage::setProperties(const PlayerInfo &information) {
-    info.setProperties(information.numCores, information.cpuSpeedInteger, 
-        information.cpuSpeedFractional, information.ping);
+    info.setProperties(information.getNumCores(), information.getCpuSpeedInt(), 
+        information.getCpuSpeedFrac(), information.getPing());
 }
 
 void qPlayerInfoMessage::prepareToSend() {

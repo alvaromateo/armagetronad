@@ -148,10 +148,10 @@ class PlayerInfo {
 		PlayerInfo(uchar numCores, uchar cpuSpeedInteger, uchar cpuSpeedFractional, ushort ping);
 
 		// getters
-		inline uchar getNumCores() { return numCores; }
-		inline uchar getCpuSpeedInt() { return cpuSpeedInteger; }
-		inline uchar getCpuSpeedFrac() { return cpuSpeedFractional; }
-		inline ushort getPing() { return ping; }
+		inline uchar getNumCores() const { return numCores; }
+		inline uchar getCpuSpeedInt() const { return cpuSpeedInteger; }
+		inline uchar getCpuSpeedFrac() const { return cpuSpeedFractional; }
+		inline ushort getPing() const { return ping; }
 
 		bool isInitialized() { return numCores > 0; }
 		void setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p);
