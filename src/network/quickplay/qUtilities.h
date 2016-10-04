@@ -118,10 +118,10 @@ class qMessageStorage {
 		inline MQ &getPendingAckQueue() { return pendingAckQueue; }
 		MQ::iterator getMessageFromQueue(int sock, MQ &queue);
 
-		void deleteMessage(MQ::iterator it, MQ &queue);
+		void deleteMessage(MQ::iterator &it, MQ &queue);
 		void deleteMessage(int sock, MQ &queue);
 		void addMessage(const messElem &elem, MQ &queue);
-		void moveMessage(MQ::iterator it, MQ &originQueue, MQ &destQueue);
+		void moveMessage(MQ::iterator &it, MQ &originQueue, MQ &destQueue);
 		void handleData(const uchar *buf, int numBytes, int sock);
 
 		qMessage *createMessage(uchar type);
