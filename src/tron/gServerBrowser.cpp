@@ -225,9 +225,9 @@ void gServerBrowser::BrowseQuickPlay ()
     while (!gameFound && myself.active()) {
         if (myself.getData() == 0) {
             con << tString("Waiting for players...\n");
-            std::cerr << "Waiting for players...\n";
+            std::cerr << count << "    Waiting for players...\n";
             ++count;
-            if (count > 20) {           // Wait 10 x 20 seconds to find a game
+            if (count > 15) {           // Wait 10 x 15 seconds to find a game
                 con << tString("Lost connection with server\n");
                 std::cerr << "Lost connection with server\n";
                 break;
@@ -236,8 +236,9 @@ void gServerBrowser::BrowseQuickPlay ()
                 // If there is no message to resend a resend message is sent
                 myself.resendUnacked();
             }
+        } else {
+            count = 0;          // reset count (server answered)
         }
-        count = 0;          // reset count (server answered)
         myself.processMessages();
         myself.sendMessages();
         gameFound = myself.gameFound();

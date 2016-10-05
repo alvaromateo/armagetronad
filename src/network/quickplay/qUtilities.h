@@ -65,8 +65,8 @@ This file will contain all the different classes needed.
 #define qSERVER_IP		"127.0.0.1"
 #define qBACKLOG     	20      				// How many pending connections queue will hold
 #define qPLAYERS    	2       				// number of players for each game
-#define qMAX_BUF_SIZE 	128
-#define qMAX_NET_ADDR	64
+#define qMAX_BUF_SIZE 	256
+#define qMAX_NET_ADDR	128
 #define qCHAR_BITS 		8
 #define qSHORT_BYTES	2
 #define qHEADER_LEN		3
@@ -295,7 +295,7 @@ class qMessage {
 		// addMessagePart is in charge to build the message when it has been divided in different parts by the network
 		// it just adds new information received to the buffer until it has the specified message length
 		void addMessagePart(const uchar *buf, int numShorts);			
-		bool isMessageReadable() { return (messLen <= currentLen - qHEADER_LEN) || !type; } 		// 3 are the header bytes
+		bool isMessageReadable();
 		void acknowledgeMessage(const MQ::iterator &it, qMessageStorage *ms);
 
 		virtual void handleMessage(const MQ::iterator &it, qMessageStorage *ms); 			// to read the message and create the corresponding derived class

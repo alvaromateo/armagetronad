@@ -188,7 +188,7 @@ qMessage *qMessageStorage::createMessage(uchar type) {
 
 void qMessageStorage::handleData(const uchar *buf, int numBytes, int sock) {
     uchar type = 0;
-    cerr << "message storage -> received data" << endl;
+    cerr << "message storage -> received data (" << numBytes << " bytes received)" << endl;
 
     // find if there is already a message started in the socket
     MQ::iterator it = getReceivedQueue().find(sock);
@@ -389,8 +389,9 @@ void qPlayer::processMessages() {
                     cerr << "player -> message type did not match qSendHostingOrder nor qSendConnectInfo" << endl;
             }
             deleteMessage(it, getReceivedQueue());      // the message has to be deleted to free memory
+        } else {
+            ++it;
         }
-        ++it;
     }
 }
 
@@ -578,7 +579,7 @@ void qServerInstance::getData() {
 
                     qPlayer *newPlayer = new qPlayer(newfd, remoteaddr);        // create new player
                     addPlayer(newPlayer, newfd);                                // add player to the queue of players
-                    cerr << "NEW player created" << endl;
+                    cerr << "server -> NEW player created" << endl;
                 }
 
                 retval = fcntl(newfd, F_SETFL, O_NONBLOCK);
@@ -664,8 +665,9 @@ void qServerInstance::processMessages() {
                     break;
             }
             deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
+        } else {
+            ++it;
         }
-        ++it;
     }
 }
 
@@ -774,15 +776,24 @@ void qMessage::addMessagePart(const uchar *buf, int numBytes) {
     int bytesRead = 1;
     if (messLen == 0 && (currentLen + numBytes) >= qSHORT_BYTES + 1) {
         messLen = readShort(buf, bytesRead);        // the first byte is the type
+        cerr << "addMessagePart -> length = " << messLen << endl;
     }
     numBytes = numBytes > qMAX_BUF_SIZE ? qMAX_BUF_SIZE : numBytes;
+    cerr << "addMessagePart -> numBytes = " << numBytes << endl;
+    cerr << "addMessagePart -> currentLen = " << currentLen << endl;
     std::copy(buf, buf + numBytes, buffer + currentLen);
     currentLen += numBytes;
 }
 
+bool qMessage::isMessageReadable() {
+    bool readable = (messLen == currentLen) || !type;
+    cerr << string("message -> ") + (readable ? "" : "not ") + "readable" << endl;
+    return readable;
+}
+
 // handles partial sends
 int qMessage::send(int sock) {
-    cerr << "message -> sending out" << endl;
+    cerr << "message -> sending out " << currentLen << " bytes" << endl;
     int total = 0;
     int bytesLeft = currentLen;
     int n;
@@ -886,8 +897,8 @@ void qPlayerInfoMessage::prepareToSend() {
     int position = 0;
     uchar *buf = getBuffer();
     buf[position++] = getType();
-    setMessageLength(qHEADER_LEN + qMAX_NET_ADDR + 1);
-    setCurrentLength(qHEADER_LEN + qMAX_NET_ADDR + 1);
+    setMessageLength(qHEADER_LEN + 5);
+    setCurrentLength(qHEADER_LEN + 5);
     writeShort(getCurrentLength(), position);
     buf[position++] = info.getNumCores();
     buf[position++] = info.getCpuSpeedInt();
