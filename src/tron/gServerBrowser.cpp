@@ -232,7 +232,7 @@ void gServerBrowser::BrowseQuickPlay ()
                 std::cerr << "Lost connection with server\n";
                 break;
             } else {
-                // Each 20 seconds without receiving response the message is resent
+                // Each 10 seconds without receiving response the message is resent
                 // If there is no message to resend a resend message is sent
                 myself.resendUnacked();
             }

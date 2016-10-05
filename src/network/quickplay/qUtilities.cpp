@@ -37,35 +37,6 @@ uint qServerInstance::matchesIds = 1;
 
 // GLOBAL functions
 
-/*
-void delete (qMessage *message) {
-    switch (message->getType()) {
-        case ACK:         // ack message
-            delete dynamic_cast<qAckMessage *> (message);
-            break;
-        case PLAYER_INFO:           // player sends info and requests to join game
-            delete dynamic_cast<qPlayerInfoMessage *> (message);
-            break;
-        case MATCH_READY:           // match host tells server it is ready 
-            delete dynamic_cast<qMatchReadyMessage *> (message);
-            break;
-        case RESEND:                // tells the master to resend the last information sent (cause it wasn't received)
-            delete dynamic_cast<qResendMessage *> (message);
-            break;
-        case SEND_HOST:             // server tells player that he/she has to be the host of the match 
-            delete dynamic_cast<qSendHostingOrder *> (message);
-            break;
-        case SEND_CONNECT:          // server tells player to which address he has to connect play a match
-            delete dynamic_cast<qSendConnectInfo *> (message);
-            break;
-        case SEND_PEERS:            // server send player his peers info so that he can measure the ping to them
-            delete dynamic_cast<qSendPeersInfo *> (message);
-            break;
-        default:        // the type read doesn't match with any of the possible messages
-            delete message;
-    }
-}
-*/
 
 
 // qMessageStorage methods
