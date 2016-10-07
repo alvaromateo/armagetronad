@@ -197,8 +197,13 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
     return sg_currentMaster;
 }
 
+bool gameReady;
+
 void gServerBrowser::BrowseQuickPlay ()
 {
+    // set gameReady to false and when the game has been started it will set it to true
+    gameReady = false;
+
     // output the messages on the game screen
     sr_con.autoDisplayAtNewline = true;
     sr_con.fullscreen = true;
@@ -252,11 +257,15 @@ void gServerBrowser::BrowseQuickPlay ()
             con << tString("I am the master of the game\n");
             std::cerr << "I am the master of the game\n";
 
-            // start game
-
+            // do this 2 in a separate thread and detach it (we don't want to join when it finishes)
             // send match ready message
-
             // when match starts close socket with server
+            // wait at the begining of the thread until gameReady is set to true and then execute the function
+
+            // start game
+            sg_copySettings();
+            sg_HostGame();
+
         } else {
             con << tString("I am a client of the game\n");
             std::cerr << "I am a client of the game\n";

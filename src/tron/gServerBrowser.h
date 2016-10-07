@@ -49,4 +49,7 @@ public:
     static int lowPort, highPort;
 };
 
+// Variable to indicate when the game is already up
+extern bool gameReady;
+
 #endif

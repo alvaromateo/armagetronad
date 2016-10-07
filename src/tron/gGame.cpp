@@ -1897,6 +1897,9 @@ void sg_HostGame(){
 
     tAdvanceFrame();
 
+    std::cerr << "Game created" << std::endl;
+    gameReady = true;
+
     //#ifndef DEBUG
 #ifdef DEDICATED
     static double startTime=tSysTimeFloat();

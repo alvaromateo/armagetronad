@@ -76,6 +76,26 @@ void qMessageStorage::deleteMessage(int sock, MQ &queue) {
     }
 }
 
+void qMessageStorage::deleteAllMessages(int sock) {
+    MQ::iterator itReceivedQueue, itSendingQueue, itPendingAckQueue;
+    itReceivedQueue = receivedQueue.find(sock);
+    itSendingQueue = sendingQueue.find(sock);
+    itPendingAckQueue = pendingAckQueue.find(sock);
+    cerr << "message storage -> deleting all messages for player in socket " << sock << endl;
+
+    if (itReceivedQueue != receivedQueue.end()) {
+        deleteMessage(itReceivedQueue, receivedQueue);
+    }
+
+    if (itSendingQueue != sendingQueue.end()) {
+        deleteMessage(itSendingQueue, sendingQueue);
+    }
+
+    if (itPendingAckQueue != pendingAckQueue.end()) {
+        deleteMessage(itPendingAckQueue, pendingAckQueue);
+    }
+}
+
 /*
  * Move element pointed by it from originQueue to destQueue. Increments iterator to next element
  */
@@ -593,7 +613,7 @@ void qServerInstance::getData() {
                     if (nbytes == 0) { 
                         // connection closed
                         cerr << "server -> select: socket hung up" << endl;
-                        // TODO: delete the player from the playerQueue and from possible matchesQueue (in case the client disconnected)
+                        deletePlayerFromQueues(i);
                     } else {
                         perror("server -> recv failed\n");
                     }
@@ -610,6 +630,14 @@ void qServerInstance::getData() {
         }       // end of FD_ISSET
     }       // end of looping through the existing connections
 
+}
+
+void qServerInstance::deletePlayerFromQueues(int sock) {
+    qPlayer *playerToDelete = getPlayer(sock);
+    deletePlayerFromMatches(sock, playerToDelete->getMatchId());
+    deletePlayer(sock);
+    deleteAllMessages(sock);
+    cerr << "server -> player " << sock << " removed from all queues and messages deleted" << endl;
 }
 
 void qServerInstance::deletePlayerFromMatches(int sock, uint id) {

@@ -118,6 +118,7 @@ class qMessageStorage {
 		inline MQ &getPendingAckQueue() { return pendingAckQueue; }
 		MQ::iterator getMessageFromQueue(int sock, MQ &queue);
 
+		void deleteAllMessages(int sock);
 		void deleteMessage(MQ::iterator &it, MQ &queue);
 		void deleteMessage(int sock, MQ &queue);
 		void addMessage(const messElem &elem, MQ &queue);
@@ -253,6 +254,11 @@ class qServerInstance : public qServer, public qMessageStorage {
 		inline void addPlayer(qPlayer *&newPlayer, int sock) { 
 			playerQueue.insert(std::pair<int, qPlayer*>(sock, newPlayer));
 		}
+		inline void deletePlayer(sock) {
+			PQ::iterator it = playerQueue.find(sock);
+			playerQueue.erase(it);
+		}
+		
 		qPlayer *getPlayer(int sock);
 
 		void deletePlayerFromMatches(int sock, uint id);
