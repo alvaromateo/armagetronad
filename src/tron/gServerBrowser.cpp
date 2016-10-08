@@ -197,7 +197,45 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
     return sg_currentMaster;
 }
 
+// Quickplay methods
+
 bool gameReady;
+
+void waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) {
+    if (myself.getData() == 0) {
+        con << waitingMessage;
+        std::cerr << count << "    " << waitingMessage; 
+        ++count;
+        if (count > 15) {           // Wait 10 x 15 seconds to find a game
+            con << tString("Lost connection with server\n");
+            std::cerr << "Lost connection with server\n";
+            break;
+        } else {
+            // Each 10 seconds without receiving response the message is resent
+            // If there is no message to resend a resend message is sent
+            myself.resendUnacked();
+        }
+    } else {
+        count = 0;
+    }
+    myself.processMessages();
+    myself.sendMessages();
+}
+
+void waitAndSendWhenReady(qPlayer &myself) {
+    int messagesCount = 0;
+
+    while (!gameReady) {
+        // just wait
+    }
+    myself.sendMatchReadyToServer();
+
+    while (!myself.ackReceived()) {
+        waitForServerMessages(myself, tString("Waiting for server ack...\n"), messagesCount);
+    }
+    // close connection with server and exit the thread executing this function
+    myself.closeConnection();
+}
 
 void gServerBrowser::BrowseQuickPlay ()
 {
@@ -228,24 +266,7 @@ void gServerBrowser::BrowseQuickPlay ()
 
     // wait for the server response
     while (!gameFound && myself.active()) {
-        if (myself.getData() == 0) {
-            con << tString("Waiting for players...\n");
-            std::cerr << count << "    Waiting for players...\n";
-            ++count;
-            if (count > 15) {           // Wait 10 x 15 seconds to find a game
-                con << tString("Lost connection with server\n");
-                std::cerr << "Lost connection with server\n";
-                break;
-            } else {
-                // Each 10 seconds without receiving response the message is resent
-                // If there is no message to resend a resend message is sent
-                myself.resendUnacked();
-            }
-        } else {
-            count = 0;          // reset count (server answered)
-        }
-        myself.processMessages();
-        myself.sendMessages();
+        waitForServerMessages(myself, tString("Waiting for players...\n"), count);
         gameFound = myself.gameFound();
     }
 
@@ -257,14 +278,17 @@ void gServerBrowser::BrowseQuickPlay ()
             con << tString("I am the master of the game\n");
             std::cerr << "I am the master of the game\n";
 
-            // do this 2 in a separate thread and detach it (we don't want to join when it finishes)
-            // send match ready message
-            // when match starts close socket with server
+            // do this in a separate thread and detach it (we don't want to join when it finishes)
             // wait at the begining of the thread until gameReady is set to true and then execute the function
+            // send match ready message
+            // close socket with server
+            thread sendMatchReady(waitAndSendWhenReady);
+            sendMatchReady.detach();
 
             // start game
-            sg_copySettings();
-            sg_HostGame();
+            //sg_copySettings();
+            //sg_HostGame();
+            std::cerr << "Match starting!" << std::endl;
 
         } else {
             con << tString("I am a client of the game\n");
@@ -273,6 +297,7 @@ void gServerBrowser::BrowseQuickPlay ()
             // close socket with server
 
             // connect to game
+            std::cerr << "Connected to game!" << std::endl;
         }
     }
 

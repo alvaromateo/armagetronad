@@ -327,7 +327,9 @@ qConnection::qConnection(int socket, sockaddr_storage remoteaddress)
     : sock(socket), remoteaddr(remoteaddress) {}
 
 qConnection::~qConnection() {
-    close(sock);
+    if (sock != -1) {
+        close(sock);
+    }
 }
 
 
@@ -445,6 +447,18 @@ void qPlayer::sendMyInfoToServer() {
     addMessage(messElem(getSock(), message), getSendingQueue());
     cerr << "player -> added qPlayerInfoMessage to sendingQueue" << endl;
     this->sendMessages();
+}
+
+void qPlayer::sendMatchReadyToServer() {
+    cerr << "player -> sending match ready to server" << endl;
+    qMatchReadyMessage *message = new qMatchReadyMessage();
+    message->prepareToSend();
+    addMessage(messElem(player.getSock(), message), getSendingQueue());
+    cerr << "player -> added qMatchReadyMessage to sending Queue" << endl;
+}
+
+bool qPlayer::ackReceived() {
+    return this->getPendingAckQueue().empty();
 }
 
 bool qPlayer::hasBetterPC(qPlayer *other) {

@@ -176,6 +176,10 @@ class qConnection {
 		inline int *getSockAddr() { return &sock; }
 		inline sockaddr_storage *getSockaddrStorage() { return &remoteaddr; }
 		inline bool active() { return sock >= 0; }
+		inline void closeConnection() {
+	        close(sock);
+	        sock = -1;
+		}
 };
 
 class qPlayer : public qConnection, public qMessageStorage {
@@ -199,8 +203,10 @@ class qPlayer : public qConnection, public qMessageStorage {
 		void setInfo(qPlayerInfoMessage *message);
 		void setConnection(qSendConnectInfo *message);
 		void sendMyInfoToServer();
-
+		void sendMatchReadyToServer();
 		void processMessages();
+
+		bool ackReceived();
 		bool hasBetterPC(qPlayer *other);
 		int getData();
 
@@ -258,7 +264,7 @@ class qServerInstance : public qServer, public qMessageStorage {
 			PQ::iterator it = playerQueue.find(sock);
 			playerQueue.erase(it);
 		}
-		
+
 		qPlayer *getPlayer(int sock);
 
 		void deletePlayerFromMatches(int sock, uint id);
