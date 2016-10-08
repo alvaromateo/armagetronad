@@ -50,6 +50,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tConfiguration.h"
 
 // quickplay include
+#include <thread>
 #include "../network/quickplay/qUtilities.h"
 
 
@@ -201,7 +202,7 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 
 bool gameReady;
 
-void waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) {
+bool waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) {
     if (myself.getData() == 0) {
         con << waitingMessage;
         std::cerr << count << "    " << waitingMessage; 
@@ -209,7 +210,7 @@ void waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) 
         if (count > 15) {           // Wait 10 x 15 seconds to find a game
             con << tString("Lost connection with server\n");
             std::cerr << "Lost connection with server\n";
-            break;
+            return false;
         } else {
             // Each 10 seconds without receiving response the message is resent
             // If there is no message to resend a resend message is sent
@@ -220,6 +221,7 @@ void waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) 
     }
     myself.processMessages();
     myself.sendMessages();
+    return true;
 }
 
 void waitAndSendWhenReady(qPlayer &myself) {
@@ -230,8 +232,9 @@ void waitAndSendWhenReady(qPlayer &myself) {
     }
     myself.sendMatchReadyToServer();
 
-    while (!myself.ackReceived()) {
-        waitForServerMessages(myself, tString("Waiting for server ack...\n"), messagesCount);
+    bool keepLooping = true;
+    while (!myself.ackReceived() && keepLooping) {
+        keepLooping = waitForServerMessages(myself, tString("Waiting for server ack...\n"), messagesCount);
     }
     // close connection with server and exit the thread executing this function
     myself.closeConnection();
@@ -258,6 +261,7 @@ void gServerBrowser::BrowseQuickPlay ()
     std::cerr << "Connected to quickplay server\n";
 
     int count = 0;
+    bool keepLooping = true;
     // send our information to the server
     myself.sendMyInfoToServer();
 
@@ -265,8 +269,8 @@ void gServerBrowser::BrowseQuickPlay ()
     std::cerr << "Looking for other players...\n";
 
     // wait for the server response
-    while (!gameFound && myself.active()) {
-        waitForServerMessages(myself, tString("Waiting for players...\n"), count);
+    while (!gameFound && myself.active() && keepLooping) {
+        keepLooping = waitForServerMessages(myself, tString("Waiting for players...\n"), count);
         gameFound = myself.gameFound();
     }
 
@@ -282,7 +286,7 @@ void gServerBrowser::BrowseQuickPlay ()
             // wait at the begining of the thread until gameReady is set to true and then execute the function
             // send match ready message
             // close socket with server
-            thread sendMatchReady(waitAndSendWhenReady);
+            std::thread sendMatchReady(waitAndSendWhenReady);
             sendMatchReady.detach();
 
             // start game
