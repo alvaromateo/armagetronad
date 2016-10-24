@@ -260,11 +260,8 @@ class qServerInstance : public qServer, public qMessageStorage {
 		inline void addPlayer(qPlayer *&newPlayer, int sock) { 
 			playerQueue.insert(std::pair<int, qPlayer*>(sock, newPlayer));
 		}
-		inline void deletePlayer(int sock) {
-			PQ::iterator it = playerQueue.find(sock);
-			playerQueue.erase(it);
-		}
-
+		
+		void deletePlayer(int sock);
 		qPlayer *getPlayer(int sock);
 
 		void deletePlayerFromQueues(int sock);

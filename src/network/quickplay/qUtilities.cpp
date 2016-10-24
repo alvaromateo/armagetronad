@@ -665,6 +665,7 @@ void qServerInstance::deletePlayerFromMatches(int sock, uint id) {
     pair<MatchQ::iterator, MatchQ::iterator> range = matchesQueue.equal_range(id);
     for (MatchQ::iterator it = range.first; it != range.second && notFound; ++it) {
         if (it->second->getSock() == sock) {
+            cerr << "server -> player found in game" << endl;
             matchesQueue.erase(it++);
             notFound = false;
         }
@@ -724,6 +725,15 @@ qPlayer *qServerInstance::getPlayer(int sock) {
         return it->second;
     }
     return NULL;
+}
+
+void qServerInstance::deletePlayer(int sock) {
+    PQ::iterator it = playerQueue.find(sock);
+    if (it != playerQueue.end()) {
+        playerQueue.erase(it);
+    } else {
+        cerr << "Player was already deleted" << endl;
+    }
 }
 
 void qServerInstance::fillClientPlayers(vector<qPlayer *> &cPlayers, uint matchId) {
