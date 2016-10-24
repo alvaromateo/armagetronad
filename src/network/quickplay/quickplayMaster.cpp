@@ -32,13 +32,16 @@ This server is only guaranteed to run on GNU/Linux distributions
 /*
     BUILD!
 
-1) Only necessary first time: ./configure --enable-master CODELEVEL=2
+1) Only necessary first time: ./configure --enable-master CODELEVEL=2 CPPFLAGS="-std=c++11 -stdlib=libc++ -pthread"
     To debug add -> DEBUGLEVEL=3
     On mac add -> LIBS="-framework OpenGL -framework GLUT" 
 2) make && make install
 3) make run
 
 If some of the languages strings are added, then re-run ./bootstrap.sh !!
+
+Current build command:
+    ./configure --enable-master CODELEVEL=2 CPPFLAGS="-std=c++11 -stdlib=libc++ -pthread" LIBS="-framework OpenGL -framework GLUT" CXX="clang++" CC="clang++"
 
 */
 
@@ -77,8 +80,6 @@ int main(int argc, char **argv) {
     int matchesCreated;
     qServerInstance quickServer;
     while (1) {
-        // handle connections
-        quickServer.getData();
         quickServer.processMessages();
         quickServer.sendMessages();
         // put players together for a game
@@ -86,6 +87,8 @@ int main(int argc, char **argv) {
         if (matchesCreated > 0) {
             std::cout << "server -> created " << matchesCreated << " new match/es\n";
         }
+        // handle connections
+        quickServer.getData();
     }
 }
 

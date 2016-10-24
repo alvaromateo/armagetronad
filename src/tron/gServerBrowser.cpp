@@ -203,7 +203,10 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 bool gameReady;
 
 bool waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) {
-    if (myself.getData() == 0) {
+    myself.processMessages();
+    myself.sendMessages();
+
+    if (!myself.gameFound() && myself.getData() == 0) {
         con << waitingMessage;
         std::cerr << count << "    " << waitingMessage; 
         ++count;
@@ -219,28 +222,26 @@ bool waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) 
     } else {
         count = 0;
     }
-    myself.processMessages();
-    myself.sendMessages();
     return true;
 }
 
-void waitAndSendWhenReady(qPlayer &myself) {
+void waitAndSendWhenReady(qPlayer *myself) {
     int messagesCount = 0;
 
     while (!gameReady) {
         // just wait
     }
-    myself.sendMatchReadyToServer();
+    myself->sendMatchReadyToServer();
 
     bool keepLooping = true;
-    while (!myself.ackReceived() && keepLooping) {
-        keepLooping = waitForServerMessages(myself, tString("Waiting for server ack...\n"), messagesCount);
+    while (!myself->ackReceived() && keepLooping) {
+        keepLooping = waitForServerMessages(*myself, tString("Waiting for server ack...\n"), messagesCount);
     }
     // close connection with server and exit the thread executing this function
-    myself.closeConnection();
+    myself->closeConnection();
 }
 
-void gServerBrowser::BrowseQuickPlay ()
+void gServerBrowser::BrowseOnlineGame ()
 {
     // set gameReady to false and when the game has been started it will set it to true
     gameReady = false;
@@ -286,7 +287,7 @@ void gServerBrowser::BrowseQuickPlay ()
             // wait at the begining of the thread until gameReady is set to true and then execute the function
             // send match ready message
             // close socket with server
-            std::thread sendMatchReady(waitAndSendWhenReady);
+            std::thread sendMatchReady(waitAndSendWhenReady, &myself);
             sendMatchReady.detach();
 
             // start game

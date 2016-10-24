@@ -61,7 +61,7 @@ This file will contain all the different classes needed.
 
 
 // Defines
-#define qPORT        	"3490"
+#define qPORT        	"6666"
 #define qSERVER_IP		"127.0.0.1"
 #define qBACKLOG     	20      				// How many pending connections queue will hold
 #define qPLAYERS    	2       				// number of players for each game
@@ -267,6 +267,7 @@ class qServerInstance : public qServer, public qMessageStorage {
 
 		qPlayer *getPlayer(int sock);
 
+		void deletePlayerFromQueues(int sock);
 		void deletePlayerFromMatches(int sock, uint id);
 		void addPlayerToMatches(qPlayer *player, uint id);
 		void getData();

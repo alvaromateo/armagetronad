@@ -42,7 +42,7 @@ public:
     static void ConfigurationMenu();    // browser configuration menu
 
     // quick play
-    static void BrowseQuickPlay();
+    static void BrowseOnlineGame();
 
     static nServerInfoBase * CurrentMaster(); // the currently active master server
 

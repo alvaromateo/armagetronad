@@ -244,7 +244,7 @@ void PlayerInfo::setProperties(uchar nCores, uchar cpuSI, uchar cpuSF, ushort p)
 }
 
 int PlayerInfo::setCpuInfo() {
-    cerr << "PlayerInfo -> setting information about the CPU and ping" << endl;
+    cerr << "PlayerInfo -> setting information about the CPU" << endl;
     uchar nCores, cpuSI, cpuSF;
     ushort p;
     int res = getCpuInfo(&nCores, &cpuSI, &cpuSF, &p);
@@ -292,6 +292,7 @@ qConnection::qConnection() {
         if (retval == -1) {
             close(sockfd);
             cerr << "client -> connect failed" << endl;
+            printf("Error in connect %s\n", strerror(errno));
             continue;
         }
         break;
@@ -453,7 +454,7 @@ void qPlayer::sendMatchReadyToServer() {
     cerr << "player -> sending match ready to server" << endl;
     qMatchReadyMessage *message = new qMatchReadyMessage();
     message->prepareToSend();
-    addMessage(messElem(player.getSock(), message), getSendingQueue());
+    addMessage(messElem(getSock(), message), getSendingQueue());
     cerr << "player -> added qMatchReadyMessage to sending Queue" << endl;
 }
 
@@ -510,7 +511,7 @@ qServer::qServer() {
             exit(3);
         }
 
-        retval = bind(this->listener, p->ai_addr, p->ai_addrlen);
+        retval = ::bind(this->listener, p->ai_addr, p->ai_addrlen);
         if (retval == -1) {
             close(this->listener);
             cerr << "server -> bind failed" << endl;
@@ -519,16 +520,20 @@ qServer::qServer() {
 
         // print IP address
         char str[qMAX_NET_ADDR];
+        uint portTest;
         if (p->ai_family == AF_INET) {
             struct sockaddr_in *pV4Addr = reinterpret_cast<sockaddr_in *> (p->ai_addr);
             struct in_addr ipAddr = pV4Addr->sin_addr;
+            portTest = pV4Addr->sin_port;
             inet_ntop(AF_INET, &ipAddr, str, qMAX_NET_ADDR);
         } else {
             struct sockaddr_in6 *pV6Addr = reinterpret_cast<sockaddr_in6 *> (p->ai_addr);
             struct in6_addr ipAddr = pV6Addr->sin6_addr;
+            portTest = pV6Addr->sin6_port;
             inet_ntop(AF_INET6, &ipAddr, str, qMAX_NET_ADDR);
         }
         cerr << "Server IP address: " << str << endl;
+        cerr << "Server port: " << ntohs(portTest) << endl;
 
         break; // if this instruction is reached it means all three system calls were successful and we can proceed
     }
