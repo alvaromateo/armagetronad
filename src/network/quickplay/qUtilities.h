@@ -65,7 +65,7 @@ This file will contain all the different classes needed.
 #define qPORT_NUM 		6666
 #define qSERVER_IP		"127.0.0.1"
 #define qBACKLOG     	20      				// How many pending connections queue will hold
-#define qPLAYERS    	2       				// number of players for each game
+#define qPLAYERS    	3       				// number of players for each game
 #define qMAX_BUF_SIZE 	256
 #define qMAX_NET_ADDR	128
 #define qCHAR_BITS 		8
@@ -183,6 +183,7 @@ class qConnection {
 	        close(sock);
 	        sock = -1;
 		}
+		std::string getPrintableAddress();
 };
 
 class qPlayer : public qConnection, public qMessageStorage {

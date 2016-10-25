@@ -346,6 +346,21 @@ qConnection::~qConnection() {
     }
 }
 
+string qConnection::getPrintableAddress() {
+    // print IP address
+    char str[qMAX_NET_ADDR];
+    if (remoteaddr.ss_family == AF_INET) {
+        struct sockaddr_in *pV4Addr = (sockaddr_in *) &remoteaddr;
+        struct in_addr ipAddr = pV4Addr->sin_addr;
+        inet_ntop(AF_INET, &ipAddr, str, qMAX_NET_ADDR);
+    } else {
+        struct sockaddr_in6 *pV6Addr = (sockaddr_in6 *) &remoteaddr;
+        struct in6_addr ipAddr = pV6Addr->sin6_addr;
+        inet_ntop(AF_INET6, &ipAddr, str, qMAX_NET_ADDR);
+    }
+    return str;
+}
+
 
 // qPlayer methods
 
@@ -360,7 +375,7 @@ int qPlayer::getData() {
     int nbytes, retval;
     uchar buf[qMAX_BUF_SIZE];
     struct timeval tv;
-    tv.tv_sec = 10;
+    tv.tv_sec = 2;
     tv.tv_usec = 0;
 
     fd_set read_fds;        // temporal file descriptor list for select() function
@@ -469,6 +484,7 @@ void qPlayer::sendMatchReadyToServer() {
     message->prepareToSend();
     addMessage(messElem(getSock(), message), getSendingQueue());
     cerr << "player -> added qMatchReadyMessage to sending Queue" << endl;
+    this->sendMessages();
 }
 
 bool qPlayer::ackReceived() {
@@ -1022,12 +1038,9 @@ void qSendConnectInfo::handleMessage(const MQ::iterator &it, qMessageStorage *ms
     int bytesRead = qHEADER_LEN;
     uchar *buf = getBuffer();
     family = buf[bytesRead++];
-    cerr << "message -> family = " << family << ", address = ";
     for (int i = 0; i < qMAX_NET_ADDR; ++i) {
         address[i] = (char) buf[bytesRead + i];
-        cerr << address[i];
     }
-    cerr << endl;
 
     // do nothing -> the player method processMessages() will take care of connecting to the game specified
     acknowledgeMessage(it, ms);

@@ -28,6 +28,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef ArmageTron_ServerBrowser_H
 #define ArmageTron_ServerBrowser_H
 
+#include <mutex>
+#include <condition_variable>
+
 class nServerInfo;
 class nServerInfoBase;
 
@@ -51,5 +54,9 @@ public:
 
 // Variable to indicate when the game is already up
 extern bool qGameReady;
+extern bool qGameMaster;
+
+extern std::mutex m;
+extern std::condition_variable cv;
 
 #endif

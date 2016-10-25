@@ -534,7 +534,7 @@ gGameSettings singlePlayer(10,
 
 gGameSettings multiPlayer(10,
                           30, 10, 100,
-                          0,   4, 100,
+                          0,   3, 100,
                           false, false,
                           0  ,  -3,
                           gDUEL, gFINISH_IMMEDIATELY, 2,
@@ -1486,8 +1486,7 @@ void update_settings( bool const * goon )
         if (sg_singlePlayer)
             sg_currentSettings = &singlePlayer;
         else {
-            if (sg_quickPlay) sg_currentSettings = &quickPlay;
-            else sg_currentSettings = &multiPlayer;
+            sg_currentSettings = &multiPlayer;
         }
 
         sg_copySettings();
@@ -1946,8 +1945,12 @@ void sg_HostGame(){
     update_settings();
     ePlayerNetID::CompleteRebuild();
 
-    std::cerr << "Game created" << std::endl;
-    qGameReady = true;
+    {
+      std::lock_guard<std::mutex> lk(m);
+      qGameReady = true;
+      std::cerr << "Game created" << std::endl;
+    }
+    cv.notify_one();
 
     tAdvanceFrame();
 
