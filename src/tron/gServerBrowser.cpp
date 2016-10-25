@@ -200,7 +200,7 @@ nServerInfoBase * gServerBrowser::CurrentMaster()
 
 // Quickplay methods
 
-bool gameReady;
+bool qGameReady = false;
 
 bool waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) {
     myself.processMessages();
@@ -210,7 +210,7 @@ bool waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) 
         con << waitingMessage;
         std::cerr << count << "    " << waitingMessage; 
         ++count;
-        if (count > 15) {           // Wait 10 x 15 seconds to find a game
+        if (count > 3) {           // Wait 10 x 15 seconds to find a game
             con << tString("Lost connection with server\n");
             std::cerr << "Lost connection with server\n";
             return false;
@@ -227,10 +227,13 @@ bool waitForServerMessages(qPlayer &myself, tString waitingMessage, int &count) 
 
 void waitAndSendWhenReady(qPlayer *myself) {
     int messagesCount = 0;
+    std::cerr << "Start of send Match Ready thread" << std::endl;
 
-    while (!gameReady) {
+    while (!qGameReady) {
         // just wait
     }
+
+    std::cerr << "Sending Match Ready message to server" << std::endl;
     myself->sendMatchReadyToServer();
 
     bool keepLooping = true;
@@ -243,8 +246,8 @@ void waitAndSendWhenReady(qPlayer *myself) {
 
 void gServerBrowser::BrowseOnlineGame ()
 {
-    // set gameReady to false and when the game has been started it will set it to true
-    gameReady = false;
+    // set qGameReady to false and when the game has been started it will set it to true
+    qGameReady = false;
 
     // output the messages on the game screen
     sr_con.autoDisplayAtNewline = true;
@@ -276,8 +279,8 @@ void gServerBrowser::BrowseOnlineGame ()
     }
 
     if (!gameFound) {
-        con << tString("Error -> Server hung up\n");
-        std::cerr << "Error -> Server hung up\n";
+        con << tString("Error -> Game not found. Try again!\n");
+        std::cerr << "Error -> Game not found. Try again!\n";
     } else {
         if (myself.isMaster()) {
             con << tString("I am the master of the game\n");
@@ -288,29 +291,37 @@ void gServerBrowser::BrowseOnlineGame ()
             // send match ready message
             // close socket with server
             std::thread sendMatchReady(waitAndSendWhenReady, &myself);
-            sendMatchReady.detach();
-
+            
+            sg_quickPlay = true;
             // start game
-            //sg_copySettings();
-            //sg_HostGame();
-            std::cerr << "Match starting!" << std::endl;
+            sg_HostGame();
+
+            sendMatchReady.join();
+            std::cerr << "Match finished!" << std::endl;
+            sg_quickPlay = false;
 
         } else {
             con << tString("I am a client of the game\n");
             std::cerr << "I am a client of the game\n";
 
             // close socket with server
+            myself.closeConnection();
 
             // connect to game
-            std::cerr << "Connected to game!" << std::endl;
+            nServerInfoRedirect quick_play_server(tString(qSERVER_IP), qPORT_NUM);
+            ConnectToServer( &quick_play_server );
+
+            // game finished
+            std::cerr << "Game finished!" << std::endl;
         }
     }
 
+    qGameReady = false;
+
     /* Once the sg_hostGame function starts we won't be able to tell the master.
-        Solution! create a thread and send the message with a delay of 1 second to the server
+        Solution! create a thread and send the message to the server
             while we create the game.
 
-        sg_copySettings() to set the number of players
         sg_HostGame() to create the match (main thread)
         
         ConnectToServer() to join a match:

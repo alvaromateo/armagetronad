@@ -50,6 +50,6 @@ public:
 };
 
 // Variable to indicate when the game is already up
-extern bool gameReady;
+extern bool qGameReady;
 
 #endif

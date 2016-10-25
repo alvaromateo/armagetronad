@@ -62,6 +62,7 @@ This file will contain all the different classes needed.
 
 // Defines
 #define qPORT        	"6666"
+#define qPORT_NUM 		6666
 #define qSERVER_IP		"127.0.0.1"
 #define qBACKLOG     	20      				// How many pending connections queue will hold
 #define qPLAYERS    	2       				// number of players for each game
@@ -129,6 +130,8 @@ class qMessageStorage {
 		virtual void processMessages() = 0;
 		virtual void sendMessages();
 		virtual void resendUnacked();
+
+		std::string getQueueName(const MQ &queue);
 };
 
 
@@ -260,7 +263,7 @@ class qServerInstance : public qServer, public qMessageStorage {
 		inline void addPlayer(qPlayer *&newPlayer, int sock) { 
 			playerQueue.insert(std::pair<int, qPlayer*>(sock, newPlayer));
 		}
-		
+
 		void deletePlayer(int sock);
 		qPlayer *getPlayer(int sock);
 
@@ -294,6 +297,7 @@ class qMessage {
 		inline ushort getMessageLength() { return messLen; }
 		inline ushort getCurrentLength() { return currentLen; }
 		inline uchar getType() { return type; }
+		inline int getPrintableType() { return static_cast<int> (type); }
 
 		// Setters
 		inline void setMessageLength(ushort mLen) { messLen = mLen; }

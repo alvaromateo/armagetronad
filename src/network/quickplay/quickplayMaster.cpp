@@ -80,10 +80,10 @@ int main(int argc, char **argv) {
     int matchesCreated;
     qServerInstance quickServer;
     while (1) {
-        quickServer.processMessages();
-        quickServer.sendMessages();
         // put players together for a game
         matchesCreated = quickServer.prepareMatch();
+        quickServer.processMessages();
+        quickServer.sendMessages();
         if (matchesCreated > 0) {
             std::cout << "server -> created " << matchesCreated << " new match/es\n";
         }

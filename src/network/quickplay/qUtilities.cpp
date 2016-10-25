@@ -37,7 +37,17 @@ uint qServerInstance::matchesIds = 1;
 
 // GLOBAL functions
 
-
+string qMessageStorage::getQueueName(const MQ &queue) {
+    string name = "";
+    if (&queue == &receivedQueue) {
+        name = "received queue";
+    } else if (&queue == &sendingQueue) {
+        name = "sending queue";
+    } else if (&queue == &pendingAckQueue) {
+        name = "pending ack queue";
+    }
+    return name;
+}
 
 // qMessageStorage methods
 
@@ -66,7 +76,7 @@ void qMessageStorage::deleteMessage(MQ::iterator &it, MQ &queue) {
         delete (it->second);
     }
     queue.erase(it++);
-    cerr << "message storage -> deleted message from queue" << endl;
+    cerr << "message storage -> deleted message from queue " << getQueueName(queue) << endl;
 }
 
 void qMessageStorage::deleteMessage(int sock, MQ &queue) {
@@ -151,7 +161,6 @@ void qMessageStorage::addMessage(const messElem &elem, MQ &queue) {
 }
 
 void qMessageStorage::sendMessages() {
-    cerr << "message storage -> sending messages (" << sendingQueue.size() << " messages in queue)" << endl;
     MQ::iterator it = sendingQueue.begin();
     while (it != sendingQueue.end()) {
         if (it->second->send(it->first) < 0) {      // send message and get error status
@@ -159,8 +168,12 @@ void qMessageStorage::sendMessages() {
             ++it;
         } else {
             // move message to ack queue
-            cerr << "message storage -> moving message to ack queue" << endl;
-            moveMessage(it, sendingQueue, pendingAckQueue);
+            if (it->second->getType() != ACK && it->second->getType() != RESEND) {
+                cerr << "message storage -> message sent -> moving message of type " << it->second->getPrintableType() << " to ack queue" << endl;
+                moveMessage(it, sendingQueue, pendingAckQueue);
+            } else {
+                deleteMessage(it, sendingQueue);
+            }
         }
     }
 }
@@ -590,8 +603,12 @@ void qServerInstance::getData() {
     int *listener = getListener();
     fd_set *master = getFileDescriptorList();
 
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
     read_fds = *master;
-    retval = select(*fdmax + 1, &read_fds, NULL, NULL, NULL);
+    retval = select(*fdmax + 1, &read_fds, NULL, NULL, &tv);
     if (retval == -1) {
         perror("server -> select failed\n");
         exit(6);
@@ -663,13 +680,17 @@ void qServerInstance::deletePlayerFromMatches(int sock, uint id) {
     cerr << "server -> deleting player in socket " << sock << " from match with ID " << id << endl;
     bool notFound = true;
     pair<MatchQ::iterator, MatchQ::iterator> range = matchesQueue.equal_range(id);
-    for (MatchQ::iterator it = range.first; it != range.second && notFound; ++it) {
+    MatchQ::iterator it = range.first;
+    while (it != range.second && notFound) {
         if (it->second->getSock() == sock) {
             cerr << "server -> player found in game" << endl;
-            matchesQueue.erase(it++);
+            it = matchesQueue.erase(it);
             notFound = false;
+        } else {
+            ++it;
         }
-    } 
+    }
+    cerr << "end of deleting player from matches" << endl;
 }
 
 void qServerInstance::addPlayerToMatches(qPlayer *player, uint id) {
@@ -678,7 +699,6 @@ void qServerInstance::addPlayerToMatches(qPlayer *player, uint id) {
 }
 
 void qServerInstance::processMessages() {
-    cerr << "server -> processing " << getReceivedQueue().size() << " messages" << endl;
     MQ::iterator it = getReceivedQueue().begin();
     while (it != getReceivedQueue().end()) {
         if ((it->second)->isMessageReadable()) {
@@ -709,7 +729,7 @@ void qServerInstance::processMessages() {
                     deletePlayerFromMatches(it->first, player->getMatchId());
                     break;
                 default:
-                    cerr << "server -> message type did not match qPlayerInfoMessage nor qMatchReadyMessage" << endl;
+                    cerr << "server -> message type " << (it->second)->getPrintableType() << endl;
                     break;
             }
             deleteMessage(it, getReceivedQueue());        // the message has to be deleted to free memory
@@ -729,7 +749,9 @@ qPlayer *qServerInstance::getPlayer(int sock) {
 
 void qServerInstance::deletePlayer(int sock) {
     PQ::iterator it = playerQueue.find(sock);
+    cerr << "Player about to be deleted" << endl;
     if (it != playerQueue.end()) {
+        delete it->second;
         playerQueue.erase(it);
     } else {
         cerr << "Player was already deleted" << endl;
@@ -914,7 +936,9 @@ void qMessage::acknowledgeMessage(const MQ::iterator &it, qMessageStorage *ms) {
 
 // qMessage classes
 
-qAckMessage::qAckMessage() : qMessage(static_cast<uchar> (ACK)) {}
+qAckMessage::qAckMessage() : qMessage(static_cast<uchar> (ACK)) {
+    cerr << "NEW Ack message created. Type = " << getPrintableType() << endl;
+}
 
 void qAckMessage::handleMessage(const MQ::iterator &it, qMessageStorage *ms) {
     ms->deleteMessage(it->first, ms->getPendingAckQueue());

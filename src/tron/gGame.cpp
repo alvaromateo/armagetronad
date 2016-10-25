@@ -540,9 +540,18 @@ gGameSettings multiPlayer(10,
                           gDUEL, gFINISH_IMMEDIATELY, 2,
                           60, 30 );
 
+gGameSettings quickPlay(10,
+                          30, 10, 100,
+                          0,   2, 100,
+                          false, false,
+                          0  ,  -3,
+                          gDUEL, gFINISH_IMMEDIATELY, 2,
+                          60, 30 );
+
 gGameSettings* sg_currentSettings = &singlePlayer;
 
 
+// multiplayer settings
 
 static tSettingItem<int> mp_sw("SCORE_WIN"   ,multiPlayer.scoreWin);
 static tSettingItem<int> mp_lt("LIMIT_TIME"  ,multiPlayer.limitTime);
@@ -576,6 +585,43 @@ static tConfItem<bool>   mp_tboq	("TEAM_BALANCE_ON_QUIT",		multiPlayer.enforceTe
 static tConfItem<REAL>   mp_wsu		("WALLS_STAY_UP_DELAY"	,		multiPlayer.wallsStayUpDelay);
 static tConfItem<REAL>   mp_wl		("WALLS_LENGTH"		    ,		multiPlayer.wallsLength     );
 static tConfItem<REAL>   mp_er		("EXPLOSION_RADIUS"		,		multiPlayer.explosionRadius );
+
+// Quickplay settings
+
+static tSettingItem<int> qp_sw("QP_SCORE_WIN"   ,multiPlayer.scoreWin);
+static tSettingItem<int> qp_lt("QP_LIMIT_TIME"  ,multiPlayer.limitTime);
+static tSettingItem<int> qp_lr("QP_LIMIT_ROUNDS",multiPlayer.limitRounds);
+static tSettingItem<int> qp_ls("QP_LIMIT_SCORE" ,multiPlayer.limitScore);
+
+static tConfItem<int>    qp_na("QP_NUM_AIS"     ,multiPlayer.numAIs);
+static tConfItem<int>    qp_mp("QP_MIN_PLAYERS" ,multiPlayer.minPlayers);
+static tConfItem<int>    qp_iq("QP_AI_IQ"       ,multiPlayer.AI_IQ);
+
+static tConfItem<bool>   qp_an("QP_AUTO_AIS"    ,multiPlayer.autoNum);
+static tConfItem<bool>   qp_aq("QP_AUTO_IQ"     ,multiPlayer.autoIQ);
+
+static tConfItem<int>    qp_sf("QP_SPEED_FACTOR",multiPlayer.speedFactor);
+static tConfItem<int>    qp_zf("QP_SIZE_FACTOR" ,multiPlayer.sizeFactor);
+
+static tConfItem<gGameType>    qp_gt("QP_GAME_TYPE",multiPlayer.gameType);
+static tConfItem<gFinishType>  qp_ft("QP_FINISH_TYPE",multiPlayer.finishType);
+
+static tConfItem<REAL>   qp_wzmr("QP_WIN_ZONE_MIN_ROUND_TIME",multiPlayer.winZoneMinRoundTime);
+static tConfItem<REAL>   qp_wzld("QP_WIN_ZONE_MIN_LAST_DEATH",multiPlayer.winZoneMinLastDeath);
+
+static tConfItem<int>    qp_tmin  ("QP_TEAMS_MIN",         multiPlayer.minTeams);
+static tConfItem<int>    qp_tmax  ("QP_TEAMS_MAX",         multiPlayer.maxTeams);
+static tConfItem<int>    qp_mtp   ("QP_TEAM_MIN_PLAYERS",      multiPlayer.minPlayersPerTeam);
+static tConfItem<int>    qp_tp    ("QP_TEAM_MAX_PLAYERS",      multiPlayer.maxPlayersPerTeam);
+static tConfItem<int>    qp_tib   ("QP_TEAM_MAX_IMBALANCE",      multiPlayer.maxTeamImbalance);
+static tConfItem<bool>   qp_tbai  ("QP_TEAM_BALANCE_WITH_AIS",   multiPlayer.balanceTeamsWithAIs);
+static tConfItem<bool>   qp_tboq  ("QP_TEAM_BALANCE_ON_QUIT",    multiPlayer.enforceTeamRulesOnQuit);
+
+static tConfItem<REAL>   qp_wsu   ("QP_WALLS_STAY_UP_DELAY"  ,   multiPlayer.wallsStayUpDelay);
+static tConfItem<REAL>   qp_wl    ("QP_WALLS_LENGTH"       ,   multiPlayer.wallsLength     );
+static tConfItem<REAL>   qp_er    ("QP_EXPLOSION_RADIUS"   ,   multiPlayer.explosionRadius );
+
+// single player settings
 
 static tSettingItem<int> sp_sw("SP_SCORE_WIN"   ,singlePlayer.scoreWin);
 static tSettingItem<int> sp_lt("SP_LIMIT_TIME"  ,singlePlayer.limitTime);
@@ -1190,6 +1236,8 @@ static int absolute_winner=0;
 static REAL lastTime_gameloop=0;
 static REAL lastTimeTimestep=0;
 
+bool sg_quickPlay=0;
+
 static int wishWinner = 0;
 static char const * wishWinnerMessage = "";
 
@@ -1375,59 +1423,60 @@ void update_settings( bool const * goon )
     if (sn_GetNetState()!=nCLIENT)
     {
 #ifdef DEDICATED
-        // wait for players to join
-        {
-            bool restarted = false;
+              // wait for players to join
+              {
+                  bool restarted = false;
 
-            REAL timeout = tSysTimeFloat() + 3.0f;
-            while ( sg_NumHumans() <= 0 && sg_NumUsers() > 0 && ( !goon || *goon ) )
-            {
-                if ( !restarted && bool(sg_currentGame) )
-                {
-                    sg_currentGame->StartNewMatch();
-                    restarted = true;
-                }
+                  REAL timeout = tSysTimeFloat() + 3.0f;
+                  while ( sg_NumHumans() <= 0 && sg_NumUsers() > 0 && ( !goon || *goon ) )
+                  {
+                      if ( !restarted && bool(sg_currentGame) )
+                      {
+                          sg_currentGame->StartNewMatch();
+                          restarted = true;
+                      }
 
-                if ( tSysTimeFloat() > timeout )
-                {
-                    tOutput o("$gamestate_wait_players");
-                    sn_CenterMessage(o);
+                      if ( tSysTimeFloat() > timeout )
+                      {
+                          tOutput o("$gamestate_wait_players");
+                          sn_CenterMessage(o);
 
-                    tOutput o2("$gamestate_wait_players_con");
-                    sn_ConsoleOut(o2);
+                          tOutput o2("$gamestate_wait_players_con");
+                          sn_ConsoleOut(o2);
 
-                    timeout = tSysTimeFloat() + 10.0f;
-                }
+                          timeout = tSysTimeFloat() + 10.0f;
+                      }
 
-                // do tasks
-                st_DoToDo();
-                nAuthentication::OnBreak();
+                      // do tasks
+                      st_DoToDo();
+                      nAuthentication::OnBreak();
 
-                // kick spectators and chatbots
-                nMachine::KickSpectators();
-                ePlayerNetID::RemoveChatbots();
+                      // kick spectators and chatbots
+                      nMachine::KickSpectators();
+                      ePlayerNetID::RemoveChatbots();
 
-                // wait for network messages
-                sn_BasicNetworkSystem.Select( 0.1f );
-                gGame::NetSyncIdle();
+                      // wait for network messages
+                      sn_BasicNetworkSystem.Select( 0.1f );
+                      gGame::NetSyncIdle();
 
-                // handle console input
-                sr_Read_stdin();
-            }
-        }
+                      // handle console input
+                      sr_Read_stdin();
+                  }
+              }
 
-        if ( sg_NumUsers() <= 0 && bool( sg_currentGame ) )
-        {
-            sg_currentGame->NoLongerGoOn();
-        }
+              if ( sg_NumUsers() <= 0 && bool( sg_currentGame ) )
+              {
+                  sg_currentGame->NoLongerGoOn();
+              }
 
-        // count the active players
-        int humans = sg_NumHumans();
+              // count the active players
+              int humans = sg_NumHumans();
 
-        bool newsg_singlePlayer = (humans<=1);
+              bool newsg_singlePlayer = (humans<=1);
 #else
-        bool newsg_singlePlayer = (sn_GetNetState() == nSTANDALONE);
+              bool newsg_singlePlayer = (sn_GetNetState() == nSTANDALONE);
 #endif
+
         if (sg_singlePlayer != newsg_singlePlayer && bool( sg_currentGame ) )
         {
             sg_currentGame->StartNewMatch();
@@ -1436,8 +1485,10 @@ void update_settings( bool const * goon )
 
         if (sg_singlePlayer)
             sg_currentSettings = &singlePlayer;
-        else
-            sg_currentSettings = &multiPlayer;
+        else {
+            if (sg_quickPlay) sg_currentSettings = &quickPlay;
+            else sg_currentSettings = &multiPlayer;
+        }
 
         sg_copySettings();
     }
@@ -1895,10 +1946,10 @@ void sg_HostGame(){
     update_settings();
     ePlayerNetID::CompleteRebuild();
 
-    tAdvanceFrame();
-
     std::cerr << "Game created" << std::endl;
-    gameReady = true;
+    qGameReady = true;
+
+    tAdvanceFrame();
 
     //#ifndef DEBUG
 #ifdef DEDICATED

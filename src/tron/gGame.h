@@ -181,6 +181,7 @@ public:
 };
 
 extern gGameSettings* sg_currentSettings;
+extern bool sg_quickPlay;
 
 #endif
 
